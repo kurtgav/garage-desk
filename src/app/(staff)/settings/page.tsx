@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
-import { requireOwner } from "@/lib/auth";
+import { getStaff, requireOwner } from "@/lib/auth";
 import { getSettings } from "@/lib/data/settings";
 import { SettingsForm } from "./settings-form";
 
-export const metadata: Metadata = { title: "Settings" };
+export async function generateMetadata(): Promise<Metadata> {
+  // Mechanics get the generic 404 (D-020); a static title would leak into it and confirm the page exists.
+  return { title: (await getStaff())?.role === "owner" ? "Settings" : "Page not found" };
+}
 
 /** FR9, owner only: mechanics get the generic 404 (D-020). */
 export default async function SettingsPage() {

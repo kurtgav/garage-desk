@@ -56,10 +56,10 @@ export function SettingsForm({ settings }: { settings: GarageSettings }) {
           />
         </Field>
       </fieldset>
-      <div className="border-t border-line pt-6">
+      <div className="border-t border-rule pt-6">
         <fieldset className="grid gap-4">
           <legend className="mb-3 text-base font-semibold text-ink">Garage details</legend>
-          <p className="text-sm text-muted">Shown to customers on their quote page.</p>
+          <p className="text-sm text-faint">Shown to customers on their quote page.</p>
           <Field id="settings-name" label="Garage name" error={errors.garage_name}>
             <Input name="garage_name" autoComplete="organization" maxLength={100} defaultValue={settings.garageName} />
           </Field>

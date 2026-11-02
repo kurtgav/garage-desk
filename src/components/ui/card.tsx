@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 export function Card({ className, ...props }: React.ComponentProps<"div">) {
   // min-w-0: as a grid/flex item it may shrink, so a Table inside scrolls in its own frame.
-  return <div className={cn("min-w-0 rounded-lg border border-line bg-surface", className)} {...props} />;
+  return <div className={cn("min-w-0 rounded-xl border border-line bg-surface", className)} {...props} />;
 }
 
 /** Title on the left, optional actions on the right (wraps on narrow screens). */
@@ -16,11 +16,11 @@ export function CardHeader({ className, ...props }: React.ComponentProps<"div">)
 }
 
 export function CardTitle({ className, ...props }: React.ComponentProps<"h2">) {
-  return <h2 className={cn("text-base font-semibold text-ink", className)} {...props} />;
+  return <h2 className={cn("text-lg font-medium tracking-tight text-ink sm:text-xl", className)} {...props} />;
 }
 
 export function CardDescription({ className, ...props }: React.ComponentProps<"p">) {
-  return <p className={cn("text-sm text-muted", className)} {...props} />;
+  return <p className={cn("text-sm text-faint", className)} {...props} />;
 }
 
 export function CardContent({ className, ...props }: React.ComponentProps<"div">) {

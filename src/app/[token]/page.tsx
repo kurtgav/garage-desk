@@ -5,7 +5,15 @@ import { cache } from "react";
 import { Timeline } from "@/components/timeline";
 import { TotalsBlock } from "@/components/totals-block";
 import { buttonVariants } from "@/components/ui/button";
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { formatCents, formatLineAmount, formatQuantity } from "@/lib/money";
 import { formatDateTime, formatPhone, formatPlate } from "@/lib/format";
 import { getPublicJob, type PublicJob } from "@/lib/public-job";
@@ -25,7 +33,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // Generic on purpose (no ref, no names). Without a job: the not-found title, so a bad link's 404
   // looks like any other unknown URL's (a static `metadata` export would leak into the 404).
   return job
-    ? { title: { absolute: "Your repair quote" }, robots: { index: false, follow: false } }
+    ? {
+        title: { absolute: "Your repair quote" },
+        robots: { index: false, follow: false },
+      }
     : { title: "Page not found" };
 }
 
@@ -48,14 +59,20 @@ const BANNER: Record<JobStatus, string> = {
   approved: "bg-status-approved-bg text-status-approved",
   in_progress: "bg-status-in-progress-bg text-status-in-progress",
   ready: "bg-status-ready-bg text-status-ready",
-  collected: "border border-line bg-surface text-status-collected",
-  cancelled: "border border-line bg-surface text-status-cancelled",
+  collected: "border border-edge bg-surface text-status-collected",
+  cancelled: "border border-edge bg-surface text-status-cancelled",
 };
 
 function stepTitle(step: Step, i: number, steps: Step[]): string {
-  if (step.status === "approved" && step.channel === "phone") return "Approved by phone (recorded by the garage)";
-  if (step.status === "quoted" && steps.slice(0, i).some((s) => s.status === "quoted")) return "Updated quote ready";
-  if (step.status === "in_progress" && steps[i - 1]?.status === "ready") return "Back in the workshop";
+  if (step.status === "approved" && step.channel === "phone")
+    return "Approved by phone (recorded by the garage)";
+  if (
+    step.status === "quoted" &&
+    steps.slice(0, i).some((s) => s.status === "quoted")
+  )
+    return "Updated quote ready";
+  if (step.status === "in_progress" && steps[i - 1]?.status === "ready")
+    return "Back in the workshop";
   return STEP_LABEL[step.status];
 }
 
@@ -74,39 +91,53 @@ export default async function CustomerJobPage({ params }: Props) {
   return (
     <main className="mx-auto flex w-full max-w-lg flex-1 flex-col px-4 pt-5 pb-8 sm:pt-10">
       <header className="flex items-center justify-between gap-4 pb-6">
-        <p className="min-w-0 font-semibold text-ink">{garage.name}</p>
+        <p className="min-w-0 truncate text-[17px] font-semibold tracking-tight text-ink">
+          {garage.name}
+        </p>
         <a href={tel} className={buttonVariants({ variant: "secondary" })}>
           <Phone aria-hidden />
           Call
         </a>
       </header>
 
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">Hi {job.customer.first_name}</h1>
-      <p className="mt-1 text-muted">
-        {vehicle.make} {vehicle.model} · <span className="whitespace-nowrap">{formatPlate(vehicle.plate)}</span> · Job{" "}
-        <span className="whitespace-nowrap">{job.job.ref}</span>
+      <h1 className="text-[28px] leading-9 font-semibold tracking-tight text-ink">
+        Hi {job.customer.first_name}
+      </h1>
+      <p className="mt-1 text-[15px] text-muted">
+        {vehicle.make} {vehicle.model} ·{" "}
+        <span className="whitespace-nowrap">{formatPlate(vehicle.plate)}</span>{" "}
+        · Job <span className="whitespace-nowrap">{job.job.ref}</span>
       </p>
 
       {/* Live region: after Approve/Decline the refreshed page changes this text and it is announced. */}
-      <div role="status" className={cn("mt-5 rounded-lg px-4 py-4", BANNER[status])}>
+      <div
+        role="status"
+        className={cn("mt-5 rounded-2xl px-5 py-4", BANNER[status])}
+      >
         <p className="text-lg font-semibold">{CUSTOMER_STATUS_TEXT[status]}</p>
         <p className="mt-1 text-sm text-ink">{bannerDetail(job)}</p>
       </div>
 
       {status === "ready" && (
-        <section aria-labelledby="collect-heading" className="mt-4 rounded-lg border border-line bg-surface p-4">
+        <section
+          aria-labelledby="collect-heading"
+          className="mt-4 rounded-2xl border border-line bg-surface p-5"
+        >
           <h2 id="collect-heading" className="text-base font-semibold text-ink">
             Where to collect
           </h2>
           <p className="mt-2 flex gap-2 text-ink">
-            <MapPin aria-hidden className="mt-0.5 size-4 shrink-0 text-muted" />
+            <MapPin aria-hidden className="mt-0.5 size-4 shrink-0 text-faint" />
             <span>
               {garage.name}
               <br />
               {garage.address}
             </span>
           </p>
-          <a href={tel} className={buttonVariants({ size: "lg", className: "mt-4 w-full" })}>
+          <a
+            href={tel}
+            className={buttonVariants({ size: "lg", className: "mt-4 w-full" })}
+          >
             <Phone aria-hidden />
             Call {phoneText}
           </a>
@@ -120,15 +151,22 @@ export default async function CustomerJobPage({ params }: Props) {
               Your quote
             </h2>
             {version != null && (
-              <span data-testid="quote-version" className="text-sm font-medium text-muted">
+              <span
+                data-testid="quote-version"
+                className="text-sm font-medium text-muted"
+              >
                 Quote v{version}
               </span>
             )}
           </div>
-          <p className="mt-1 text-sm text-muted">Prices excl. VAT; VAT is added once on the total.</p>
-          <div className="mt-3 rounded-lg border border-line bg-surface">
-            <Table className="[&_td:first-child]:pl-4 [&_th:first-child]:pl-4 [&_td:last-child]:pr-4 [&_th:last-child]:pr-4">
-              <TableCaption className="sr-only">Work and parts in this quote</TableCaption>
+          <p className="mt-1 text-sm text-muted">
+            Prices excl. VAT; VAT is added once on the total.
+          </p>
+          <div className="mt-3 rounded-2xl border border-line bg-surface px-2 pt-2">
+            <Table>
+              <TableCaption className="sr-only">
+                Work and parts in this quote
+              </TableCaption>
               <TableHeader>
                 <TableRow>
                   <TableHead scope="col">Item</TableHead>
@@ -142,8 +180,9 @@ export default async function CustomerJobPage({ params }: Props) {
                   <TableRow key={i}>
                     <TableCell className="align-top text-base">
                       <span className="block text-ink">{line.description}</span>
-                      <span className="block text-sm text-muted tabular-nums">
-                        {formatQuantity(line.quantity)} × {formatCents(line.unit_price_cents)}
+                      <span className="block text-sm text-faint tabular-nums">
+                        {formatQuantity(line.quantity)} ×{" "}
+                        {formatCents(line.unit_price_cents)}
                       </span>
                     </TableCell>
                     <TableCell className="text-right align-top text-base font-medium whitespace-nowrap text-ink">
@@ -153,7 +192,7 @@ export default async function CustomerJobPage({ params }: Props) {
                 ))}
               </TableBody>
             </Table>
-            <div className="border-t border-line px-4 py-4">
+            <div className="border-t border-rule px-3 py-4">
               <TotalsBlock
                 subtotalCents={totals.subtotal_cents}
                 vatCents={totals.vat_cents}
@@ -167,22 +206,39 @@ export default async function CustomerJobPage({ params }: Props) {
       )}
 
       {status === "quoted" && totals && version != null && (
-        <QuoteActions token={token} expectedVersion={String(version)} totalText={formatCents(totals.total_cents)} />
+        <QuoteActions
+          token={token}
+          expectedVersion={String(version)}
+          totalText={formatCents(totals.total_cents)}
+        />
       )}
 
-      <section aria-labelledby="progress-heading" className="mt-8">
-        <h2 id="progress-heading" className="mb-4 text-lg font-semibold text-ink">
+      <section
+        aria-labelledby="progress-heading"
+        className="mt-8 rounded-2xl border border-line bg-surface p-5"
+      >
+        <h2
+          id="progress-heading"
+          className="mb-4 text-lg font-semibold text-ink"
+        >
           Progress
         </h2>
         <Timeline
-          items={job.timeline.map((step, i, steps) => ({ key: i, title: stepTitle(step, i, steps), at: step.at }))}
+          items={job.timeline.map((step, i, steps) => ({
+            key: i,
+            title: stepTitle(step, i, steps),
+            at: step.at,
+          }))}
         />
       </section>
 
-      <footer className="mt-10 border-t border-line pt-5 text-sm text-muted">
+      <footer className="mt-10 px-1 text-sm text-muted">
         <p className="font-medium text-ink">{garage.name}</p>
         <p>{garage.address}</p>
-        <a href={tel} className="-ml-1 inline-flex h-11 items-center rounded-md px-1 text-accent hover:underline">
+        <a
+          href={tel}
+          className="-ml-1 inline-flex h-11 items-center rounded-md px-1 text-ink underline decoration-subtle underline-offset-4 hover:decoration-ink"
+        >
           {phoneText}
         </a>
       </footer>

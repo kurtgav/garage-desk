@@ -28,9 +28,10 @@ export function staffErrorMessage(error: { message?: string; code?: string } | n
 
 export const INVALID_LINK = "This link is no longer valid.";
 export const TOO_MANY_ATTEMPTS = "Too many attempts. Please wait a minute and try again.";
-const QUOTE_NOT_OPEN = "This quote is no longer waiting for a decision. Refresh the page to see its current status.";
+// The customer page refreshes itself after a failed decision (quote-actions.tsx), so these never ask for a refresh.
+const QUOTE_NOT_OPEN = "This quote is no longer waiting for a decision. Its current status is shown above.";
 /** Approve/decline named a quote version that is no longer current (D-049). */
-export const QUOTE_CHANGED = "This quote was updated since you opened the page. Please refresh to see the latest version.";
+export const QUOTE_CHANGED = "This quote was updated since you opened the page. Please check the new version before you decide.";
 /** A signed-in staff member opened a customer link: their click must not count as the customer's (D-067). */
 export const STAFF_ON_CUSTOMER_LINK = "You're signed in as garage staff — record a phone approval from the job page instead.";
 

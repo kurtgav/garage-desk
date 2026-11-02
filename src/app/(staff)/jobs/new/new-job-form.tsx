@@ -64,7 +64,7 @@ export function NewJobForm({ vehicles, mechanics, defaultVehicleId }: Props) {
         </Field>
         <Link
           href="/customers/new"
-          className="inline-flex h-10 w-fit items-center gap-1.5 rounded-md text-sm font-medium text-accent hover:underline"
+          className="inline-flex h-10 w-fit items-center gap-1.5 rounded-md text-sm font-medium text-ink underline decoration-subtle underline-offset-4 hover:decoration-ink"
         >
           <UserPlus aria-hidden className="size-4" />
           New customer

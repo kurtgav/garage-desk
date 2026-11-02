@@ -36,14 +36,20 @@ type Props = {
 export function QuoteActions({ token, expectedVersion, totalText }: Props) {
   const router = useRouter();
   const [declineOpen, setDeclineOpen] = useState(false);
-  const [approveState, approve, approving] = useActionState<ActionResult | null, FormData>(async (prev, formData) => {
+  const [approveState, approve, approving] = useActionState<
+    ActionResult | null,
+    FormData
+  >(async (prev, formData) => {
     const result = await approveQuote(prev, formData);
     // Success revalidates the page server-side. On failure (e.g. the quote changed) refresh, so the
     // current quote shows next to the error.
     if (!result.ok) router.refresh();
     return result;
   }, null);
-  const [declineState, decline, declining] = useActionState<ActionResult | null, FormData>(async (prev, formData) => {
+  const [declineState, decline, declining] = useActionState<
+    ActionResult | null,
+    FormData
+  >(async (prev, formData) => {
     const result = await declineQuote(prev, formData);
     setDeclineOpen(false);
     if (!result.ok) router.refresh();
@@ -54,42 +60,64 @@ export function QuoteActions({ token, expectedVersion, totalText }: Props) {
   return (
     <section
       aria-labelledby="decision-heading"
-      className="sticky bottom-0 z-10 -mx-4 mt-8 border-t border-line bg-surface px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:static sm:mx-0 sm:rounded-lg sm:border sm:p-5"
+      className="sticky bottom-0 z-10 -mx-4 mt-8 border-t border-edge bg-surface px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_-12px_rgb(24_24_27/0.16)] sm:static sm:mx-0 sm:rounded-2xl sm:border sm:border-line sm:p-5 sm:shadow-none"
     >
-      <h2 id="decision-heading" className="mb-3 text-base font-semibold text-ink">
+      <h2
+        id="decision-heading"
+        className="mb-3 text-base font-semibold text-ink"
+      >
         Happy with this quote?
       </h2>
       {[approveState, declineState].map(
         (s, i) =>
-          s && !s.ok && !busy && (
+          s &&
+          !s.ok &&
+          !busy && (
             <Alert key={i} tone="danger" className="mb-3">
               {s.error}
             </Alert>
           ),
       )}
       {(approveState?.ok || declineState?.ok) && (
-        <p role="status" className="mb-3 text-sm text-muted">
+        <p role="status" className="mb-3 text-sm text-faint">
           Thank you. Updating…
         </p>
       )}
       <div className="grid grid-cols-[auto_1fr] gap-2">
         <Dialog open={declineOpen} onOpenChange={setDeclineOpen}>
           <DialogTrigger asChild>
-            <Button variant="secondary" size="lg" className="h-14" disabled={busy}>
+            <Button
+              variant="secondary"
+              size="lg"
+              className="h-14"
+              disabled={busy}
+            >
               Decline
             </Button>
           </DialogTrigger>
           <DialogContent>
-            <form onSubmit={submitKeepingValues(decline)} className="grid gap-4">
+            <form
+              onSubmit={submitKeepingValues(decline)}
+              className="grid gap-4"
+            >
               <DialogHeader>
                 <DialogTitle>Decline this quote?</DialogTitle>
                 <DialogDescription>
-                  The garage will see that you declined. They can send you a revised quote on this same link.
+                  The garage will see that you declined. They can send you a
+                  revised quote on this same link.
                 </DialogDescription>
               </DialogHeader>
               <input type="hidden" name="token" value={token} />
-              <input type="hidden" name="expected_version" value={expectedVersion} />
-              <Field id="decline-reason" label="Reason (optional)" hint="For example: too expensive, or only do the brakes.">
+              <input
+                type="hidden"
+                name="expected_version"
+                value={expectedVersion}
+              />
+              <Field
+                id="decline-reason"
+                label="Reason (optional)"
+                hint="For example: too expensive, or only do the brakes."
+              >
                 <Textarea name="reason" maxLength={500} />
               </Field>
               <DialogFooter>
@@ -98,7 +126,12 @@ export function QuoteActions({ token, expectedVersion, totalText }: Props) {
                     Keep the quote
                   </Button>
                 </DialogClose>
-                <Button type="submit" variant="danger" size="lg" loading={declining}>
+                <Button
+                  type="submit"
+                  variant="danger"
+                  size="lg"
+                  loading={declining}
+                >
                   Decline quote
                 </Button>
               </DialogFooter>
@@ -107,8 +140,18 @@ export function QuoteActions({ token, expectedVersion, totalText }: Props) {
         </Dialog>
         <form action={approve}>
           <input type="hidden" name="token" value={token} />
-          <input type="hidden" name="expected_version" value={expectedVersion} />
-          <Button type="submit" size="lg" className="h-14 w-full" loading={approving} disabled={busy}>
+          <input
+            type="hidden"
+            name="expected_version"
+            value={expectedVersion}
+          />
+          <Button
+            type="submit"
+            size="lg"
+            className="h-14 w-full"
+            loading={approving}
+            disabled={busy}
+          >
             Approve <span className="tabular-nums">{totalText}</span>
           </Button>
         </form>

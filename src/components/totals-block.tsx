@@ -28,7 +28,7 @@ export function TotalsBlock({ subtotalCents, vatCents, totalCents, vatBps, total
           <Money cents={vatCents} />
         </dd>
       </div>
-      <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-line pt-3">
+      <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-rule pt-3">
         <dt className="font-medium text-ink">{totalLabel}</dt>
         <dd data-testid="total-amount">
           <Money cents={totalCents} size="lg" />

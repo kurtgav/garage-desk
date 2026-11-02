@@ -25,7 +25,7 @@ export function NewCustomerForm() {
         <legend className="mb-3 text-base font-semibold text-ink">Customer</legend>
         <CustomerFields prefix="new" errors={errors} />
       </fieldset>
-      <div className="border-t border-line pt-6">
+      <div className="border-t border-rule pt-6">
         <fieldset className="grid gap-4">
           <legend className="mb-3 text-base font-semibold text-ink">First vehicle</legend>
           <VehicleFields prefix="new" errors={errors} />

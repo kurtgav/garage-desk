@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 const alertVariants = cva("flex gap-3 rounded-lg border px-4 py-3 text-sm text-ink", {
   variants: {
     tone: {
-      info: "border-accent/20 bg-accent-soft [&>svg]:text-accent",
+      info: "border-info/15 bg-info-soft/60 [&>svg]:text-info",
       success: "border-success/20 bg-success-soft [&>svg]:text-success",
       warning: "border-warning/25 bg-warning-soft [&>svg]:text-warning",
       danger: "border-danger/20 bg-danger-soft [&>svg]:text-danger",

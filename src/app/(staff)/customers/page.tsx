@@ -5,7 +5,14 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { requireStaff } from "@/lib/auth";
 import { searchCustomers } from "@/lib/data/customers";
 import type { CustomerListItem } from "@/lib/data/types";
@@ -13,7 +20,11 @@ import { formatPhone, formatPlate } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Customers" };
 
-export default async function CustomersPage({ searchParams }: { searchParams: Promise<{ q?: string | string[] }> }) {
+export default async function CustomersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string | string[] }>;
+}) {
   await requireStaff();
   const { q: raw } = await searchParams;
   const q = typeof raw === "string" ? raw.trim() : "";
@@ -33,7 +44,11 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
       />
 
       {/* A GET form: the search lives in the URL (?q=), works without JavaScript and survives a reload. */}
-      <form role="search" action="/customers" className="mb-6 flex max-w-xl gap-2">
+      <form
+        role="search"
+        action="/customers"
+        className="mb-6 flex max-w-xl gap-2"
+      >
         <label htmlFor="customer-search" className="sr-only">
           Search by name, phone or plate
         </label>
@@ -56,9 +71,18 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
       {customers.length === 0 ? (
         <EmptyState
           title={q ? `No customer matches “${q}”` : "No customers yet"}
-          description={q ? "Check the spelling, or add them as a new customer." : "Add a customer and their car to start a job."}
+          description={
+            q
+              ? "Check the spelling, or add them as a new customer."
+              : "Add a customer and their car to start a job."
+          }
           action={
-            <Link href="/customers/new" className={buttonVariants({ variant: q ? "secondary" : "primary" })}>
+            <Link
+              href="/customers/new"
+              className={buttonVariants({
+                variant: q ? "secondary" : "primary",
+              })}
+            >
               <Plus aria-hidden />
               New customer
             </Link>
@@ -66,30 +90,40 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
         />
       ) : (
         <>
-          <div className="hidden rounded-lg border border-line bg-surface md:block">
+          <div className="hidden rounded-2xl border border-line bg-surface p-3 md:block">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead scope="col" className="pl-5">
-                    Customer
-                  </TableHead>
+                  <TableHead scope="col">Customer</TableHead>
                   <TableHead scope="col">Phone</TableHead>
-                  <TableHead scope="col" className="pr-5">
-                    Vehicles
-                  </TableHead>
+                  <TableHead scope="col">Vehicles</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {customers.map((c) => (
-                  <TableRow key={c.id} className="transition-colors duration-150 hover:bg-raised/50">
-                    <TableCell className="pl-5 align-top">
-                      <Link href={`/customers/${c.id}`} className="font-medium text-accent hover:underline">
-                        {c.fullName}
-                      </Link>
-                      {c.email && <p className="text-muted">{c.email}</p>}
+                  <TableRow key={c.id}>
+                    <TableCell className="py-3 align-top">
+                      <span className="flex items-start gap-3">
+                        <Initials name={c.fullName} />
+                        <span className="min-w-0">
+                          <Link
+                            href={`/customers/${c.id}`}
+                            className="font-medium hover:underline"
+                          >
+                            {c.fullName}
+                          </Link>
+                          {c.email && (
+                            <span className="block text-sm text-faint">
+                              {c.email}
+                            </span>
+                          )}
+                        </span>
+                      </span>
                     </TableCell>
-                    <TableCell className="align-top whitespace-nowrap text-ink">{formatPhone(c.phone)}</TableCell>
-                    <TableCell className="pr-5 align-top">
+                    <TableCell className="py-3 align-top whitespace-nowrap text-ink">
+                      {formatPhone(c.phone)}
+                    </TableCell>
+                    <TableCell className="py-3 align-top">
                       <VehicleList vehicles={c.vehicles} />
                     </TableCell>
                   </TableRow>
@@ -103,11 +137,15 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
               <li key={c.id}>
                 <Link
                   href={`/customers/${c.id}`}
-                  className="block rounded-lg border border-line bg-surface p-4 transition-colors duration-150 active:bg-raised"
+                  className="block rounded-xl border border-line bg-surface p-4 transition-colors duration-150 hover:bg-ground active:bg-raised"
                 >
                   <div className="flex items-baseline justify-between gap-3">
-                    <span className="min-w-0 truncate font-medium text-accent">{c.fullName}</span>
-                    <span className="text-sm whitespace-nowrap text-muted">{formatPhone(c.phone)}</span>
+                    <span className="min-w-0 truncate font-medium text-ink">
+                      {c.fullName}
+                    </span>
+                    <span className="text-sm whitespace-nowrap text-faint">
+                      {formatPhone(c.phone)}
+                    </span>
                   </div>
                   <div className="mt-2 text-sm">
                     <VehicleList vehicles={c.vehicles} />
@@ -123,12 +161,15 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
 }
 
 function VehicleList({ vehicles }: { vehicles: CustomerListItem["vehicles"] }) {
-  if (vehicles.length === 0) return <span className="text-muted">No vehicles</span>;
+  if (vehicles.length === 0)
+    return <span className="text-muted">No vehicles</span>;
   return (
     <ul className="grid gap-0.5">
       {vehicles.map((v) => (
         <li key={v.id} className="text-ink">
-          <span className="font-medium whitespace-nowrap">{formatPlate(v.plate)}</span>
+          <span className="font-medium whitespace-nowrap">
+            {formatPlate(v.plate)}
+          </span>
           <span className="text-muted">
             {" "}
             · {v.make} {v.model}
@@ -137,5 +178,22 @@ function VehicleList({ vehicles }: { vehicles: CustomerListItem["vehicles"] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Decorative initials circle (the name sits next to it). */
+function Initials({ name }: { name: string }) {
+  const initials = name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
+  return (
+    <span
+      aria-hidden
+      className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-raised text-[13px] font-medium text-muted"
+    >
+      {initials}
+    </span>
   );
 }
