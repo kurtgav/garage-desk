@@ -12,15 +12,16 @@ Source of truth: `docs/PRD.md`. Plan: `docs/PLAN.md`. Decisions: `docs/DECISIONS
 - GitHub Actions CI: lint, typecheck, unit, integration, e2e. Hosting: Vercel (Hobby) + Supabase.
 
 ## Money
-- All money is integer **cents** (`int`/`bigint` in SQL, `number` integers in TS). Never floats, never `parseFloat` on money.
-- Line totals are a generated column; job totals come only from `public.job_totals` / `compute_job_totals()` in the DB. The UI never adds money up.
-- Parse user money input with `parsePesoToCents()` (string based), format with `formatCents()`.
-- VAT once on the subtotal: `round(subtotal * vat_bps / 10000)`, half away from zero.
+- Currency EUR, timezone Europe/Sofia, prices entered excluding VAT (D-055). Prices and job totals are integer **cents** (`int`/`bigint` in SQL, integer `number` in TS). Never floats, never `parseFloat` on money.
+- Line totals are an exact generated column (`numeric`, never rounded per line, shown with `formatLineAmount()`); job totals come only from `public.job_totals` / `compute_job_totals()` in the DB. The UI never adds money up.
+- Parse user money input with `parseMoneyToCents()` (string based), format with `formatCents()`.
+- VAT on the job total, rounded once at the end (D-048): `net = round(Σ lines)`, `vat = round(Σ lines × vat_bps / 10000)`, `total = net + vat`, half away from zero.
+- The customer is never charged for a total they did not approve: approvals are bound to an immutable quote version (D-049).
 
 ## Status and data rules
-- Every status change goes through `public.transition_job()`. No other code (app, function, trigger) writes `jobs.status`. The only exception is the seed script, which inserts backdated history directly (see DECISIONS D-016).
+- Every status change goes through `public.transition_job()` (the line-item re-quote trigger calls the same logic, D-050). No other code writes `jobs.status`. The only exception is the seed script, which inserts backdated history directly (see DECISIONS D-016).
 - RLS is enabled on every table. UI hiding is cosmetic; the database is the boundary.
-- Line items are editable only while the job is `new` (enforced by trigger + RLS).
+- Line items are editable in `new`, `quoted`, `declined`, `approved`, `in_progress`; a change in `quoted`/`approved`/`in_progress` creates a new quote version (enforced by triggers + RLS).
 - Labour unit price is copied from settings by a DB trigger; the client never sends it.
 
 ## Secrets
