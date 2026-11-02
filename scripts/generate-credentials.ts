@@ -7,8 +7,14 @@
 // Usage: pnpm credentials:generate [--push-vercel] [--rotate] [--url https://…]
 import { randomInt } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { SEED_STAFF } from "./staff";
+
+/** Plaintext secrets: owner-only file mode (mode applies on create; chmod covers existing files). */
+function writePrivate(path: string, content: string): void {
+  writeFileSync(path, content, { mode: 0o600 });
+  chmodSync(path, 0o600);
+}
 
 const ENV_FILE = ".env.local";
 const CREDS_FILE = "CREDENTIALS.local.md";
@@ -48,7 +54,7 @@ function upsertEnv(values: Record<string, string>): void {
     return line;
   });
   for (const [k, v] of Object.entries(values)) if (!seen.has(k)) out.push(`${k}=${v}`);
-  writeFileSync(ENV_FILE, out.join("\n").replace(/\n*$/, "\n"));
+  writePrivate(ENV_FILE, out.join("\n").replace(/\n*$/, "\n"));
 }
 
 function vercelEnvSet(key: string, value: string): void {
@@ -73,7 +79,7 @@ const siteUrl = urlArg && !urlArg.startsWith("--") ? urlArg : env.get("NEXT_PUBL
 const rows = SEED_STAFF.map((s) => `| ${s.fullName} | ${s.role} | ${s.email} | \`${passwords[s.envKey]}\` |`).join("\n");
 const previous = existsSync(CREDS_FILE) ? readFileSync(CREDS_FILE, "utf8") : "";
 const linkSection = /## Demo customer link[\s\S]*$/.exec(previous)?.[0] ?? "";
-writeFileSync(
+writePrivate(
   CREDS_FILE,
   `# Garage Desk — demo credentials (DO NOT COMMIT)\n\nGenerated ${new Date().toISOString()}. Post in the client channel, then delete this file.\n\nLive app: ${siteUrl}/login\n\n| Name | Role | Email | Password |\n|---|---|---|---|\n${rows}\n\n${linkSection}`.trimEnd() + "\n",
 );

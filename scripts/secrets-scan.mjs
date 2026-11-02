@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Blocks a commit/push if staged (or, with --all, tracked) files contain secrets.
 // Usage: node scripts/secrets-scan.mjs [--all]
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
 
 const all = process.argv.includes("--all");
@@ -13,7 +13,7 @@ const list = execSync(
   .map((f) => f.trim())
   .filter(Boolean);
 
-const FORBIDDEN_FILES = [/^\.env(?!\.example$)/, /(^|\/)\.env\.(?!example$)/, /^\.vercel\//, /CREDENTIALS\.local\.md$/i, /\.pem$/];
+const FORBIDDEN_FILES = [/^\.env(?!\.example$)/, /(^|\/)\.env\.(?!example$)/, /^\.vercel\//, /CREDENTIALS\.local\.md$/i, /\.pem$/, /(^|\/)\.auth\//];
 
 const PATTERNS = [
   { name: "Supabase secret key", re: /sb_secret_[A-Za-z0-9_-]{10,}/ },
@@ -25,10 +25,11 @@ const PATTERNS = [
   { name: "Assigned secret", re: /(SERVICE_ROLE_KEY|SECRET_KEY|DB_PASSWORD|_PASSWORD)[ \t]*=[ \t]*['"]?[^\s'"#]{8,}/ },
 ];
 
-// Values from the local env file must never appear verbatim in tracked content.
+// Values from local env files must never appear verbatim in tracked content.
 const localValues = [];
-if (existsSync(".env.local")) {
-  for (const line of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
+for (const envFile of [".env.local", ".env.development.local", ".env.production.local"]) {
+  if (!existsSync(envFile)) continue;
+  for (const line of readFileSync(envFile, "utf8").split(/\r?\n/)) {
     const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.+?)\s*$/);
     if (!m) continue;
     const [, key, raw] = m;
@@ -44,10 +45,10 @@ for (const file of list) {
     findings.push(`${file}: forbidden file must not be committed`);
     continue;
   }
-  if (!existsSync(file)) continue;
   let text;
   try {
-    const buf = readFileSync(file);
+    // Staged mode scans the index blob (what will actually be committed), not the working tree.
+    const buf = all ? readFileSync(file) : execFileSync("git", ["show", `:${file}`], { maxBuffer: 64 * 1024 * 1024 });
     if (buf.includes(0)) continue; // binary
     text = buf.toString("utf8");
   } catch {

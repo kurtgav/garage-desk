@@ -57,5 +57,6 @@ supabase/.branches/
 /blob-report/
 /playwright/.cache/
 /e2e/.auth/
+/playwright/.auth/
 
 .vercel

@@ -4,7 +4,12 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-const ROOT = join(".next", "static");
+// Everything a browser can receive: client JS/CSS, plus prerendered HTML/RSC payloads.
+const ROOTS = [
+  { dir: join(".next", "static"), include: () => true },
+  { dir: join(".next", "server", "app"), include: (f) => /\.(html|rsc|body|txt)$/.test(f) },
+];
+const ROOT = ROOTS[0].dir;
 if (!existsSync(ROOT)) {
   console.error(`bundle-scan: ${ROOT} not found — run \`pnpm build\` first.`);
   process.exit(1);
@@ -51,9 +56,11 @@ const JWT = /eyJ[A-Za-z0-9_-]+\.(eyJ[A-Za-z0-9_-]+)\.[A-Za-z0-9_-]*/g;
 const isServiceRoleJwt = (payload) =>
   /"role"\s*:\s*"service_role"/.test(Buffer.from(payload, "base64url").toString("utf8"));
 
-const files = readdirSync(ROOT, { recursive: true })
-  .map((f) => join(ROOT, String(f)))
-  .filter((f) => statSync(f).isFile());
+const files = ROOTS.filter(({ dir }) => existsSync(dir)).flatMap(({ dir, include }) =>
+  readdirSync(dir, { recursive: true })
+    .map((f) => join(dir, String(f)))
+    .filter((f) => include(f) && statSync(f).isFile()),
+);
 
 const findings = [];
 for (const file of files) {
@@ -75,4 +82,6 @@ if (findings.length) {
   process.exit(1);
 }
 const note = skipped.size ? ` (skipped short values of ${[...skipped].join(", ")})` : "";
-console.log(`bundle-scan: ${files.length} file(s) in ${ROOT} clean; checked ${values.length} env value(s)${note}.`);
+console.log(
+  `bundle-scan: ${files.length} file(s) in ${ROOTS.map((r) => r.dir).join(" + ")} clean; checked ${values.length} env value(s)${note}.`,
+);

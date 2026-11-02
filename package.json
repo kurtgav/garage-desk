@@ -18,7 +18,9 @@
     "secrets:scan": "node scripts/secrets-scan.mjs",
     "bundle:scan": "node scripts/check-bundle-secrets.mjs",
     "credentials:generate": "tsx scripts/generate-credentials.ts",
-    "seed": "tsx --env-file=.env.local scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "seed:local": "tsx scripts/seed.ts --local",
+    "prepare": "git config core.hooksPath .githooks || exit 0"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
