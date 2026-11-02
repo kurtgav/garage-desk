@@ -6,6 +6,8 @@ const isCI = !!process.env.CI;
 
 export default defineConfig({
   testDir: "e2e",
+  // Creates the e2e staff and saves one storageState per role (e2e/.auth/, gitignored); its return value is the teardown.
+  globalSetup: "./e2e/global-setup.ts",
   forbidOnly: isCI,
   retries: isCI ? 1 : 0,
   reporter: isCI ? [["list"], ["html", { open: "never" }]] : "list",
