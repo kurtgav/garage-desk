@@ -29,7 +29,7 @@ What to do if Garage Desk goes into real daily use, most urgent first. Each item
    Why: the Preview env does not hold the service-role key, so previews have no admin access to production data. But `createAdminClient()` refuses to start without that key, and sign-in, rate limits and the customer link all use it, so a preview cannot be used for a real test. A preview project gives previews a working backend with no production data. The free plan allows two projects per organization, so this waits for item 3 to finish (and the Tokyo project to go) or for item 4.
 
 7. **Upgrade Next.js from the pinned 16.4.3.**
-   Why: it was pinned because pnpm's release-age policy rejected 16.4.4 on its release day; upgrade once the cutoff has passed (D-022).
+   Why: it was pinned because pnpm's release-age policy rejected 16.4.4 on its release day; upgrade once the cutoff has passed (D-022). 16.4.4 passes the one-day cutoff on 3 Nov at about 10:50 UTC. Check the diff afterwards: pnpm 11 `add` of a version still inside the cutoff installs it anyway and writes `minimumReleaseAgeExclude` entries into `pnpm-workspace.yaml`, which switches the policy off for those packages. Never commit those entries.
 
 8. **Email or SMS notifications to customers when a quote is ready and when the car is ready.**
    Why: the link shows live status, but customers still have to open it; a message would cut the "is my car ready?" calls further (PRD §1). Left out of the trial on purpose (PRD §9). The SMTP set up in item 5 could carry the email part.
