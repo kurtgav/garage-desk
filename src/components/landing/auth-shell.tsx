@@ -4,13 +4,19 @@ import { cn } from "@/lib/utils";
 import { landingFonts } from "./fonts";
 import { LandingWordmark } from "./ui";
 
-type Props = { title: string; intro: React.ReactNode; children: React.ReactNode };
+type Props = {
+  title: string;
+  intro: React.ReactNode;
+  children: React.ReactNode;
+  /** The "Back to Garage Desk home" link under the card; off when the page has its own way home (404). */
+  backLink?: boolean;
+};
 
 /**
  * Sign-in, forgot and reset password. From 481px: a white card on light grey with faint pegboard dots around it.
  * Up to 480px the card chrome drops away and the page is just the form on white.
  */
-export function AuthShell({ title, intro, children }: Props) {
+export function AuthShell({ title, intro, children, backLink = true }: Props) {
   return (
     <div
       className={cn(
@@ -27,19 +33,21 @@ export function AuthShell({ title, intro, children }: Props) {
         <div className="mt-2 text-base leading-normal text-pretty text-lp-body">{intro}</div>
         <div className="mt-8">{children}</div>
       </main>
-      <footer className="mt-6 flex w-full max-w-[28rem] animate-lp-auth-in min-[481px]:justify-center">
-        <Link
-          href="/"
-          className="group -ml-3 inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-[15px] text-lp-body transition-[color] duration-200 hover:text-lp-ink min-[481px]:ml-0"
-        >
-          <ArrowLeft
-            aria-hidden
-            className="size-4 transition-transform duration-200 ease-lp group-hover:-translate-x-0.5"
-            strokeWidth={1.75}
-          />
-          Back to Garage Desk home
-        </Link>
-      </footer>
+      {backLink && (
+        <footer className="mt-6 flex w-full max-w-[28rem] animate-lp-auth-in min-[481px]:justify-center">
+          <Link
+            href="/"
+            className="group -ml-3 inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-[15px] text-lp-body transition-[color] duration-200 hover:text-lp-ink min-[481px]:ml-0"
+          >
+            <ArrowLeft
+              aria-hidden
+              className="size-4 transition-transform duration-200 ease-lp group-hover:-translate-x-0.5"
+              strokeWidth={1.75}
+            />
+            Back to Garage Desk home
+          </Link>
+        </footer>
+      )}
     </div>
   );
 }

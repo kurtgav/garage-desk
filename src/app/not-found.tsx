@@ -1,30 +1,27 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { connection } from "next/server";
+import { AuthShell } from "@/components/landing/auth-shell";
+import { lpSubmit } from "@/components/landing/ui";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Page not found" };
 
 /**
  * The one 404 for every unknown URL, invalid/revoked customer link and staff-only area (D-013, D-019, D-020).
- * No data, no links into the staff app. Rendered per request (connection()) so it gets the CSP nonce.
+ * Static copy only, no data and no links into the staff app, so every 404 is byte-identical (D-032, D-095).
+ * Rendered per request (connection()) so it gets the CSP nonce.
  */
 export default async function NotFound() {
   await connection();
   return (
-    <main className="flex flex-1 flex-col items-center justify-center px-4 py-16">
-      <div className="w-full max-w-md rounded-3xl border border-edge bg-surface px-6 py-12 text-center shadow-frame">
-        <p
-          aria-hidden
-          className="text-sm font-medium tracking-wide text-faint tabular-nums"
-        >
-          404
-        </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">
-          Page not found
-        </h1>
-        <p className="mt-2 text-[15px] text-faint">
-          Check the address and try again.
-        </p>
-      </div>
-    </main>
+    <AuthShell title="Page not found" intro="Check the address and try again." backLink={false}>
+      <p className="text-base leading-normal text-pretty text-lp-body">
+        Got this link from the garage? Ask them to send it again.
+      </p>
+      <Link href="/" className={cn(lpSubmit, "mt-8")}>
+        Go to Garage Desk home
+      </Link>
+    </AuthShell>
   );
 }

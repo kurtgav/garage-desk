@@ -25,7 +25,7 @@ import {
   type JobStatus,
 } from "@/lib/status";
 import { cn } from "@/lib/utils";
-import { jobsHref, parseJobFilters, type JobFilters } from "./filters";
+import { jobsHref, parseJobFilters, type JobFilters } from "../filters";
 
 export const metadata: Metadata = { title: "Jobs" };
 
