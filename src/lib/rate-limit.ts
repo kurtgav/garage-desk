@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const LIMITS = {
   publicView: { max: 60, windowSeconds: 60 },
   publicAction: { max: 10, windowSeconds: 60 },
+  login: { max: 10, windowSeconds: 300 },
 } as const;
 
 async function clientIp(): Promise<string> {

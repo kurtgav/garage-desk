@@ -2,6 +2,7 @@ import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "@/lib/database.types";
+import { AUTH_COOKIE_OPTIONS } from "@/lib/supabase/cookie-options";
 
 /** Supabase client acting as the signed-in staff member (RLS applies). */
 export async function createClient() {
@@ -10,6 +11,7 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      cookieOptions: AUTH_COOKIE_OPTIONS,
       cookies: {
         getAll: () => cookieStore.getAll(),
         setAll: (toSet) => {
