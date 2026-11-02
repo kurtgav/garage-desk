@@ -28,6 +28,7 @@ export async function getSettings(): Promise<GarageSettings> {
  * Existing lines keep their labour price and jobs their vat_bps (copied by DB triggers, FR4).
  */
 export async function updateSettings(values: GarageSettings): Promise<ActionResult> {
+  await requireOwner(); // defence in depth, like getSettings; cached per request
   const db = await createClient();
   const { data, error } = await db
     .from("settings")

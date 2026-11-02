@@ -192,8 +192,13 @@ function expectSecurityHeaders(res: APIResponse) {
   expect(h["content-security-policy"]).toContain("frame-ancestors 'none'");
 }
 
-// x-vercel-id is Vercel's per-request trace id and age its cache clock: they differ on every request, not per outcome.
-const VOLATILE_HEADERS = new Set(["date", "connection", "keep-alive", "transfer-encoding", "content-length", "x-vercel-id", "age"]);
+const VOLATILE_HEADERS = new Set(["date", "connection", "keep-alive", "transfer-encoding", "content-length"]);
+// Vercel: x-vercel-id is "<edge>::<function region>::<random id>" and age a cache clock. Keep the tiers (which layer
+// answered) and whether age is present; only the per-request id and the clock value are noise.
+const NOISE: Record<string, (v: string) => string> = {
+  "x-vercel-id": (v) => v.replace(/::[^:]+$/, "::<id>"),
+  age: () => "<age>",
+};
 
 /**
  * D-032: identical apart from Next's echo of the request: the per-request CSP nonce and the requested path.
@@ -209,7 +214,11 @@ async function normalised(res: APIResponse, segment: string) {
   if (isDev) body = body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "");
   return {
     body,
-    headers: Object.fromEntries(Object.entries(headers).filter(([k]) => !VOLATILE_HEADERS.has(k)).map(([k, v]) => [k, scrub(v)])),
+    headers: Object.fromEntries(
+      Object.entries(headers)
+        .filter(([k]) => !VOLATILE_HEADERS.has(k))
+        .map(([k, v]) => [k, NOISE[k] ? NOISE[k](v) : scrub(v)]),
+    ),
   };
 }
 
