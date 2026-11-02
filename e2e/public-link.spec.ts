@@ -192,7 +192,8 @@ function expectSecurityHeaders(res: APIResponse) {
   expect(h["content-security-policy"]).toContain("frame-ancestors 'none'");
 }
 
-const VOLATILE_HEADERS = new Set(["date", "connection", "keep-alive", "transfer-encoding", "content-length"]);
+// x-vercel-id is Vercel's per-request trace id and age its cache clock: they differ on every request, not per outcome.
+const VOLATILE_HEADERS = new Set(["date", "connection", "keep-alive", "transfer-encoding", "content-length", "x-vercel-id", "age"]);
 
 /**
  * D-032: identical apart from Next's echo of the request: the per-request CSP nonce and the requested path.
