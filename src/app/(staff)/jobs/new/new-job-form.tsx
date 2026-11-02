@@ -1,5 +1,6 @@
 "use client";
 
+import { UserPlus } from "lucide-react";
 import Link from "next/link";
 import { startTransition, useActionState, useState, type FormEvent } from "react";
 import { Alert } from "@/components/ui/alert";
@@ -17,7 +18,14 @@ const REQUIRED: Record<FieldName, string> = {
   description: "Describe the work or the customer's complaint.",
 };
 
-export function NewJobForm({ vehicles, mechanics }: { vehicles: PickerOption[]; mechanics: PickerOption[] }) {
+type Props = {
+  vehicles: PickerOption[];
+  /** Owner: the mechanics to pick from. Mechanic: null, the job is theirs (D-054). */
+  mechanics: PickerOption[] | null;
+  defaultVehicleId?: string;
+};
+
+export function NewJobForm({ vehicles, mechanics, defaultVehicleId }: Props) {
   const [state, dispatch, pending] = useActionState<ActionResult | null, FormData>(createJob, null);
   const [errors, setErrors] = useState<Partial<Record<FieldName, string>>>({});
 
@@ -27,7 +35,8 @@ export function NewJobForm({ vehicles, mechanics }: { vehicles: PickerOption[]; 
     event.preventDefault();
     const form = event.currentTarget;
     const formData = new FormData(form);
-    const missing = (Object.keys(REQUIRED) as FieldName[]).filter((k) => !String(formData.get(k) ?? "").trim());
+    const fields = (Object.keys(REQUIRED) as FieldName[]).filter((k) => mechanics || k !== "assigned_mechanic_id");
+    const missing = fields.filter((k) => !String(formData.get(k) ?? "").trim());
     setErrors(Object.fromEntries(missing.map((k) => [k, REQUIRED[k]])));
     if (missing.length > 0) {
       form.querySelector<HTMLElement>(`#${missing[0]}`)?.focus();
@@ -40,31 +49,47 @@ export function NewJobForm({ vehicles, mechanics }: { vehicles: PickerOption[]; 
     <form onSubmit={handleSubmit} noValidate className="grid gap-5">
       {state && !state.ok && !pending && <Alert tone="danger">{state.error}</Alert>}
 
-      <Field id="vehicle_id" label="Vehicle" error={errors.vehicle_id}>
-        <Select name="vehicle_id" defaultValue="" required>
-          <option value="" disabled>
-            Choose a vehicle
-          </option>
-          {vehicles.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.label}
+      <div className="grid gap-2">
+        <Field id="vehicle_id" label="Vehicle" error={errors.vehicle_id}>
+          <Select name="vehicle_id" defaultValue={defaultVehicleId ?? ""} required>
+            <option value="" disabled>
+              Choose a vehicle
             </option>
-          ))}
-        </Select>
-      </Field>
+            {vehicles.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Link
+          href="/customers/new"
+          className="inline-flex h-10 w-fit items-center gap-1.5 rounded-md text-sm font-medium text-accent hover:underline"
+        >
+          <UserPlus aria-hidden className="size-4" />
+          New customer
+        </Link>
+      </div>
 
-      <Field id="assigned_mechanic_id" label="Mechanic" error={errors.assigned_mechanic_id}>
-        <Select name="assigned_mechanic_id" defaultValue="" required>
-          <option value="" disabled>
-            Choose a mechanic
-          </option>
-          {mechanics.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.label}
+      {mechanics ? (
+        <Field id="assigned_mechanic_id" label="Mechanic" error={errors.assigned_mechanic_id}>
+          <Select name="assigned_mechanic_id" defaultValue="" required>
+            <option value="" disabled>
+              Choose a mechanic
             </option>
-          ))}
-        </Select>
-      </Field>
+            {mechanics.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      ) : (
+        <div>
+          <p className="text-sm font-medium text-ink">Mechanic</p>
+          <p className="mt-1 text-sm text-muted">Assigned to you</p>
+        </div>
+      )}
 
       <Field
         id="description"

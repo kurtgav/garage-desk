@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
+import type { Browser } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -80,7 +81,26 @@ const letters = (n: number) => Array.from({ length: n }, () => String.fromCharCo
 const digits = (n: number) => Array.from({ length: n }, () => randomInt(10)).join("");
 /** As typed by staff ("QZK 4821"); the DB stores it normalised ("QZK4821"). */
 export const randomPlate = (): string => `${letters(3)} ${digits(4)}`;
-export const randomPhone = (): string => `09${digits(9)}`;
+/** National Bulgarian mobile ("0881234567"); the DB stores "359881234567" (D-055). */
+export const randomPhone = (): string => `08${digits(8)}`;
+
+/**
+ * A customer's phone at 375px, without login. Each simulated customer gets its own client IP: the public
+ * rate limits are per IP (D-012) and every local client (dev browser, other runs) would otherwise share one.
+ * On Vercel the platform overwrites x-forwarded-for, so this header has no effect there.
+ */
+export function customerContext(browser: Browser, baseURL: string | undefined) {
+  return browser.newContext({
+    baseURL,
+    storageState: { cookies: [], origins: [] },
+    viewport: { width: 375, height: 812 },
+    isMobile: true,
+    hasTouch: true,
+    extraHTTPHeaders: { "x-forwarded-for": randomIp() },
+  });
+}
+/** 198.18.0.0/15 is reserved for benchmarking, so it is never a real client. */
+export const randomIp = (): string => `198.${18 + randomInt(2)}.${randomInt(256)}.${1 + randomInt(254)}`;
 /** Same shape as the app's link tokens (D-013): 32 random bytes, base64url, 43 chars. */
 export const randomToken = (): string => randomBytes(32).toString("base64url");
 export const sha256Hex = (s: string): string => createHash("sha256").update(s).digest("hex");
@@ -136,10 +156,29 @@ export async function createJob(input: {
   return job;
 }
 
-/** Staff transition as the owner (transition_job is the only status writer). */
-export async function ownerTransition(jobId: string, to: string, note?: string): Promise<void> {
-  const { error } = await ownerDb().rpc("transition_job", { p_job_id: jobId, p_to_status: to, ...(note ? { p_note: note } : {}) });
+/** Staff transition as the owner (transition_job is the only status writer). `expectedVersion`: phone approval. */
+export async function ownerTransition(jobId: string, to: string, note?: string, expectedVersion?: number): Promise<void> {
+  const { error } = await ownerDb().rpc("transition_job", {
+    p_job_id: jobId,
+    p_to_status: to,
+    ...(note ? { p_note: note } : {}),
+    ...(expectedVersion ? { p_expected_version: expectedVersion } : {}),
+  });
   if (error) throw new Error(`transition to ${to} failed: ${error.message}`);
+}
+
+/** Customer + vehicle + job (one part line) quoted as v1 by the owner, with a customer link. */
+export async function quotedJobWithLink(opts: { customerName: string; description: string; mechanicId: string }) {
+  const { customer, vehicle } = await createCustomerWithVehicle({ fullName: opts.customerName });
+  const job = await createJob({
+    vehicleId: vehicle.id,
+    mechanicId: opts.mechanicId,
+    description: opts.description,
+    lines: [{ kind: "part", description: "Wiper blade", quantity: "2", unitPriceCents: 1225 }],
+  });
+  await ownerTransition(job.id, "quoted");
+  const token = await ownerCreateLink(job.id);
+  return { customer, vehicle, job, token };
 }
 
 /** create_job_link as the owner with a fresh token, like the "Create customer link" action. Returns the raw token. */

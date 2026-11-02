@@ -11,6 +11,8 @@ import {
   ownerCreateLink,
   ownerDb,
   ownerTransition,
+  quotedJobWithLink,
+  randomIp,
   randomPhone,
   randomPlate,
   randomToken,
@@ -19,9 +21,12 @@ import {
   tag,
 } from "./support";
 
-/** Request-level checks: the HTML does not depend on the viewport, and every view counts toward the 60/min/IP limit (D-012). */
+// Own client IP per worker: public rate limits are per IP (D-012); see customerContext in support.ts.
+test.use({ extraHTTPHeaders: { "x-forwarded-for": randomIp() } });
+
+/** Request-level checks: the HTML does not depend on the viewport, so they run once. */
 const requestLevelOnly = (projectName: string) =>
-  test.skip(projectName !== "desktop", "request-level check; runs once (desktop) to stay under the public rate limit");
+  test.skip(projectName !== "desktop", "request-level check; the HTML does not depend on the viewport");
 
 test("FR6 AC3: the public page shows only whitelisted fields", async ({ request }, testInfo) => {
   requestLevelOnly(testInfo.project.name);
@@ -33,7 +38,8 @@ test("FR6 AC3: the public page shows only whitelisted fields", async ({ request 
     phone: randomPhone(),
     email: `leak-${t}@example.test`,
     description: `Internal job description ${t}`,
-    note: `Internal revise note ${t}`,
+    phoneNote: `Internal phone approval note ${t}`,
+    reworkNote: `Internal rework note ${t}`,
   };
   const { customer, vehicle } = await createCustomerWithVehicle({
     fullName: `Maria ${secret.surname}`,
@@ -55,18 +61,22 @@ test("FR6 AC3: the public page shows only whitelisted fields", async ({ request 
     description: secret.description,
     lines: [{ kind: "part", description: `Oil filter ${t}`, quantity: "1", unitPriceCents: 45000 }],
   });
-  // Quote, revise with an internal note (staff timeline only), quote again.
+  // Quote v1, phone approval recorded by the owner (note + staff actor), work, ready, rework with a note.
   await ownerTransition(job.id, "quoted");
-  await ownerTransition(job.id, "new", secret.note);
-  await ownerTransition(job.id, "quoted");
+  await ownerTransition(job.id, "approved", secret.phoneNote, 1);
+  await ownerTransition(job.id, "in_progress");
+  await ownerTransition(job.id, "ready");
+  await ownerTransition(job.id, "in_progress", secret.reworkNote);
   const token = await ownerCreateLink(job.id);
 
   const res = await request.get(`/${token}`);
   expect(res.status()).toBe(200);
-  const body = await res.text();
+  // React separates adjacent text nodes with <!-- --> ("Quote v<!-- -->1"); drop them so values match as rendered.
+  const body = (await res.text()).replaceAll("<!-- -->", "");
 
   // Whitelisted values are there (so the absence checks below are not vacuous).
-  for (const shown of ["Maria", job.ref, `Oil filter ${t}`, "Toyota", "Vios"]) expect(body, shown).toContain(shown);
+  const shown = ["Maria", job.ref, `Oil filter ${t}`, "Toyota", "Vios", "Quote v1", "Approved by phone (recorded by the garage)"];
+  for (const value of shown) expect(body, value).toContain(value);
 
   const hidden = {
     ...secret,
@@ -83,25 +93,20 @@ test("FR6 AC3: the public page shows only whitelisted fields", async ({ request 
     tokenHash: sha256Hex(token),
   };
   for (const [what, value] of Object.entries(hidden)) expect(body, `${what} leaked`).not.toContain(value);
-  // The phone in any grouping ("0917 555 0142", "0917-555-0142").
-  expect(body, "phone leaked").not.toMatch(new RegExp(secret.phone.split("").join("[\\s-]?")));
+  // The phone's significant digits in any grouping ("088 123 4567", "+359 88 123 4567", "359881234567").
+  expect(body, "phone leaked").not.toMatch(new RegExp(secret.phone.slice(1).split("").join("[\\s-]?")));
 });
 
 test("FR6 AC2: unknown, tampered, revoked tokens, job ref, job UUID and unknown paths all get the identical 404", async ({
   request,
 }, testInfo) => {
   requestLevelOnly(testInfo.project.name);
-  const users = readUsers();
   const t = tag();
-  const { vehicle } = await createCustomerWithVehicle({ fullName: `Nora Probe${t}` });
-  const job = await createJob({
-    vehicleId: vehicle.id,
-    mechanicId: users.mechanicB.id,
+  const { job, token } = await quotedJobWithLink({
+    customerName: `Nora Probe${t}`,
     description: `404 probe ${t}`,
-    lines: [{ kind: "part", description: "Wiper blade", quantity: "2", unitPriceCents: 35000 }],
+    mechanicId: readUsers().mechanicB.id,
   });
-  await ownerTransition(job.id, "quoted");
-  const token = await ownerCreateLink(job.id);
 
   const valid = await request.get(`/${token}`);
   expect(valid.status(), "valid link").toBe(200);
@@ -133,21 +138,16 @@ test("FR6 AC2: unknown, tampered, revoked tokens, job ref, job UUID and unknown 
 });
 
 test("FR6: after approval the Approve button is gone and a replayed approve changes nothing", async ({ page }, testInfo) => {
-  // Customer pages are phone-first; once is enough: approve/decline are limited to 10/min/IP (D-012).
+  // Customer pages are phone-first; the slice covers approving on desktop-sized staff runs too.
   test.skip(testInfo.project.name !== "mobile-375", "customer flow runs once, on the phone viewport");
-  const users = readUsers();
   const t = tag();
-  const { vehicle } = await createCustomerWithVehicle({ fullName: `Rosa Twice${t}` });
-  const job = await createJob({
-    vehicleId: vehicle.id,
-    mechanicId: users.mechanicB.id,
+  const { job, token } = await quotedJobWithLink({
+    customerName: `Rosa Twice${t}`,
     description: `Approve twice ${t}`,
-    lines: [{ kind: "labour", description: "Brake inspection", quantity: "1" }],
+    mechanicId: readUsers().mechanicB.id,
   });
-  await ownerTransition(job.id, "quoted");
-  const token = await ownerCreateLink(job.id);
 
-  // Two tabs on the quote; the second one stays stale and replays the approve POST.
+  // Two tabs on quote v1; the second one stays stale and replays the approve POST (same expected_version).
   const stale = await page.context().newPage();
   await page.goto(`/${token}`);
   await stale.goto(`/${token}`);
@@ -157,7 +157,7 @@ test("FR6: after approval the Approve button is gone and a replayed approve chan
   await expect(page.getByText("Quote approved — work will start soon")).toBeVisible();
   await expect(approve(page)).toHaveCount(0);
   const approved = await jobRow(job.id);
-  expect(approved.status).toBe("approved");
+  expect([approved.status, approved.approved_quote_version]).toEqual(["approved", 1]);
   expect(approved.approved_total_cents).toBe(approved.quoted_total_cents);
 
   const replay = stale.waitForResponse((r) => r.request().method() === "POST");
@@ -171,10 +171,10 @@ test("FR6: after approval the Approve button is gone and a replayed approve chan
     approved.approved_total_cents,
   ]);
   const events = must(
-    await admin().from("job_events").select("actor_type").eq("job_id", job.id).eq("to_status", "approved"),
+    await admin().from("job_events").select("actor_type, channel, quote_version").eq("job_id", job.id).eq("to_status", "approved"),
     "approved events",
   );
-  expect(events).toEqual([{ actor_type: "customer" }]);
+  expect(events).toEqual([{ actor_type: "customer", channel: "link", quote_version: 1 }]);
 
   await page.reload();
   await expect(page.getByText("Quote approved — work will start soon")).toBeVisible();

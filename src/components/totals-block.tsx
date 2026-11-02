@@ -3,7 +3,7 @@ import { bpsToPercentString } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
 type TotalsBlockProps = {
-  /** All three come from the database (job_totals or the frozen quoted_* columns). Never summed here. */
+  /** All three come from the database (job_totals or a quote version). Never summed here. */
   subtotalCents: number;
   vatCents: number;
   totalCents: number;
@@ -12,18 +12,18 @@ type TotalsBlockProps = {
   className?: string;
 };
 
-/** Subtotal, VAT and a large total, right-aligned on one edge. Test ids are relied on by QA. */
+/** Net, VAT and a large total, right-aligned on one edge. Test ids are relied on by QA. */
 export function TotalsBlock({ subtotalCents, vatCents, totalCents, vatBps, totalLabel = "Total", className }: TotalsBlockProps) {
   return (
     <dl className={cn("grid gap-2 text-sm", className)}>
       <div className="flex items-baseline justify-between gap-4">
-        <dt className="text-muted">Subtotal</dt>
+        <dt className="text-muted">Net (excl. VAT)</dt>
         <dd data-testid="subtotal-amount">
           <Money cents={subtotalCents} />
         </dd>
       </div>
       <div className="flex items-baseline justify-between gap-4">
-        <dt className="text-muted">VAT ({bpsToPercentString(vatBps)}%)</dt>
+        <dt className="text-muted">VAT {bpsToPercentString(vatBps)}%</dt>
         <dd data-testid="vat-amount">
           <Money cents={vatCents} />
         </dd>

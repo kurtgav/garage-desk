@@ -9,6 +9,7 @@
  *   faint (placeholders)/surface 5.6 · faint/ground 5.2 · accent text/surface 8.4
  *   white/accent 8.4 · white/accent-hover 10.8 · white/danger 6.6 · danger/surface 6.6 · danger/danger-soft 5.7
  *   status badges (text/fill): new 8.3 · quoted 6.9 · approved 8.6 · in progress 8.1 · ready 7.8 · collected 7.1
+ *     declined 6.7 · cancelled 9.0
  *   alerts (text/fill): success 8.0 · warning 7.1 · info 8.4
  * Non-text (1.4.11, needs 3:1): control border/surface 3.4 · focus ring/ground 7.7
  */
@@ -52,7 +53,10 @@
   --color-status-in-progress-bg: #d9eeec;
   --color-status-ready: #14532d;
   --color-status-ready-bg: #dcf2e3;
+  --color-status-declined: #9a2617; /* customer said no: needs staff action */
+  --color-status-declined-bg: #fde7e3;
   --color-status-collected: #5c5851; /* hollow badge: surface fill + line border */
+  --color-status-cancelled: #8f1c13; /* hollow like collected: both are final */
 
   /* Motion: feedback only (dialogs, presses). Exits are softer than enters. */
   --animate-fade-in: fade-in 150ms cubic-bezier(0.2, 0, 0, 1);

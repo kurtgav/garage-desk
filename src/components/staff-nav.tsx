@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 const ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, ownerOnly: true },
   { href: "/jobs", label: "Jobs", icon: ClipboardList, ownerOnly: false },
-  { href: "/customers", label: "Customers", icon: Users, ownerOnly: true },
+  { href: "/customers", label: "Customers", icon: Users, ownerOnly: false },
   { href: "/settings", label: "Settings", icon: Settings, ownerOnly: true },
 ];
 

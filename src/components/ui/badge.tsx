@@ -14,10 +14,12 @@ export const badgeVariants = cva(
         // Job statuses (keys match JobStatus). Use <StatusBadge>, which adds the label.
         new: "bg-status-new-bg text-status-new",
         quoted: "bg-status-quoted-bg text-status-quoted",
+        declined: "bg-status-declined-bg text-status-declined",
         approved: "bg-status-approved-bg text-status-approved",
         in_progress: "bg-status-in-progress-bg text-status-in-progress",
         ready: "bg-status-ready-bg text-status-ready",
         collected: "border border-line bg-surface text-status-collected",
+        cancelled: "border border-line bg-surface text-status-cancelled",
       },
     },
     defaultVariants: { tone: "neutral" },

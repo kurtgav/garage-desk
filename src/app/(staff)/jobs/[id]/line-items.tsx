@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { ActionResult, JobLine } from "@/lib/data/types";
-import { formatQuantity } from "@/lib/money";
+import { formatLineAmount, formatQuantity } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { addLine, deleteLine, updateLine } from "../actions";
 
@@ -26,7 +26,7 @@ const KIND_LABEL = { labour: "Labour", part: "Part" } as const;
 // Table cells start on the card's 20px edge, like the card title.
 const edges = "[&_td:first-child]:pl-5 [&_th:first-child]:pl-5 [&_td:last-child]:pr-5 [&_th:last-child]:pr-5";
 
-/** Line items; Edit/Delete only while the job is New and the viewer may edit (canEdit from the server). */
+/** Line items; Edit/Delete only while the viewer may edit (job.can.editLines from the server). */
 export function LineItems({ jobId, lines, canEdit }: { jobId: string; lines: JobLine[]; canEdit: boolean }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteState, deleteAction, deleting] = useActionState<ActionResult | null, FormData>(deleteLine, null);
@@ -49,7 +49,7 @@ export function LineItems({ jobId, lines, canEdit }: { jobId: string; lines: Job
           {deleteState.error}
         </Alert>
       )}
-      <Table className={edges}>
+      <Table className={edges} label={canEdit ? undefined : "Line items"}>
         <TableCaption className="sr-only">Line items</TableCaption>
         <TableHeader>
           <TableRow>
@@ -93,8 +93,9 @@ export function LineItems({ jobId, lines, canEdit }: { jobId: string; lines: Job
                   <Money cents={line.unitPriceCents} />
                   {line.kind === "labour" && <span className="text-muted">/h</span>}
                 </TableCell>
-                <TableCell className="text-right font-medium">
-                  <Money cents={line.lineTotalCents} />
+                <TableCell className="text-right font-medium whitespace-nowrap">
+                  {/* Exact, never rounded per line (D-048): may show 3–4 decimals. */}
+                  {formatLineAmount(line.lineTotalCents)}
                 </TableCell>
                 {canEdit && (
                   <TableCell className="whitespace-nowrap">
@@ -182,7 +183,7 @@ export function LineForm({ jobId, line, onDone }: { jobId: string; line?: JobLin
           />
         </Field>
         {!isLabour && (
-          <Field id={`${id}-price`} label="Unit price" className="w-36">
+          <Field id={`${id}-price`} label="Unit price" hint="Excl. VAT" className="w-36">
             <Input
               name="unit_price"
               inputMode="decimal"

@@ -12,7 +12,7 @@ import { getStaff, requireOwner } from "@/lib/auth";
 import { getDashboard } from "@/lib/data/dashboard";
 import type { Dashboard } from "@/lib/data/types";
 import { formatPlate, GARAGE_TZ } from "@/lib/format";
-import { JOB_STATUSES, STATUS_LABEL, type JobStatus } from "@/lib/status";
+import { JOB_STATUSES, OPEN_STATUSES, STATUS_LABEL, type JobStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -22,17 +22,16 @@ export async function generateMetadata(): Promise<Metadata> {
 
 const monthFmt = new Intl.DateTimeFormat("en-PH", { timeZone: GARAGE_TZ, month: "long", year: "numeric" });
 
-/** Open = every status except collected (FR8). */
-const OPEN_STATUSES = JOB_STATUSES.filter((s) => s !== "collected");
-
 /** Bar segment fill per status: the badge's text colour, so the column header dots double as the legend. */
 const SEGMENT: Record<JobStatus, string> = {
   new: "bg-status-new",
   quoted: "bg-status-quoted",
+  declined: "bg-status-declined",
   approved: "bg-status-approved",
   in_progress: "bg-status-in-progress",
   ready: "bg-status-ready",
   collected: "bg-status-collected",
+  cancelled: "bg-status-cancelled",
 };
 
 const edges = "[&_td:first-child]:pl-5 [&_th:first-child]:pl-5 [&_td:last-child]:pr-5 [&_th:last-child]:pr-5";
@@ -73,21 +72,14 @@ function RevenueCard({ revenue, month }: { revenue: Dashboard["revenue"]; month:
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Revenue this month</CardTitle>
+        <CardTitle>Revenue this month (net, excl. VAT)</CardTitle>
         <CardDescription>{month}</CardDescription>
       </CardHeader>
       <CardContent>
-        <p data-testid="revenue-excl-vat" className="text-4xl font-semibold tracking-tight text-ink tabular-nums">
-          <Money cents={revenue.exclVatCents} />
+        <p data-testid="revenue-net" className="text-4xl font-semibold tracking-tight text-ink tabular-nums">
+          <Money cents={revenue.netCents} />
         </p>
-        <p className="mt-1 text-sm text-muted">excl. VAT</p>
-        <p className="mt-4 text-sm text-ink">
-          <span data-testid="revenue-incl-vat" className="font-medium tabular-nums">
-            <Money cents={revenue.inclVatCents} />
-          </span>{" "}
-          <span className="text-muted">incl. VAT</span>
-        </p>
-        <p className="mt-1 text-sm text-muted">
+        <p className="mt-2 text-sm text-muted">
           From {n} {n === 1 ? "job" : "jobs"} collected this month
         </p>
       </CardContent>
@@ -104,7 +96,7 @@ function StatusCounts({ counts }: { counts: Dashboard["countsByStatus"] }) {
           All jobs
         </Link>
       </CardHeader>
-      <ul className="grid grid-cols-2 gap-px overflow-hidden rounded-b-lg border-t border-line bg-rule sm:grid-cols-3">
+      <ul className="grid grid-cols-2 gap-px overflow-hidden rounded-b-lg border-t border-line bg-rule sm:grid-cols-4">
         {JOB_STATUSES.map((status) => (
           <li key={status} className="bg-surface">
             <Link

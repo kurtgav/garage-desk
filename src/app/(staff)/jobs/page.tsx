@@ -10,13 +10,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { requireStaff } from "@/lib/auth";
 import { listJobs } from "@/lib/data/jobs";
 import { formatDate, formatPlate } from "@/lib/format";
-import { isJobStatus, JOB_STATUSES, STATUS_LABEL, type JobStatus } from "@/lib/status";
+import { isJobStatus, JOB_STATUSES, OPEN_STATUSES, STATUS_LABEL, type JobStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Jobs" };
 
 const FILTERS: { status?: JobStatus; label: string }[] = [
-  { label: "All" },
+  { label: "Open" },
   ...JOB_STATUSES.map((status) => ({ status, label: STATUS_LABEL[status] })),
 ];
 
@@ -24,12 +24,13 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
   const staff = await requireStaff();
   const { status: raw } = await searchParams;
   const status = isJobStatus(raw) ? raw : undefined;
-  const jobs = await listJobs(status ? { status } : undefined);
+  // shortcut: "Open" filters the full list in memory; add a status-set filter to listJobs if the list grows past a few hundred jobs.
+  const jobs = status ? await listJobs({ status }) : (await listJobs()).filter((j) => OPEN_STATUSES.includes(j.status));
   const isOwner = staff.role === "owner";
 
   const scope = isOwner ? "All mechanics" : "Assigned to you";
   const noun = jobs.length === 1 ? "job" : "jobs";
-  const count = status ? `${jobs.length} ${STATUS_LABEL[status].toLowerCase()} ${noun}` : `${jobs.length} ${noun}`;
+  const count = `${jobs.length} ${status ? STATUS_LABEL[status].toLowerCase() : "open"} ${noun}`;
 
   return (
     <>
@@ -37,12 +38,10 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
         title="Jobs"
         description={`${scope} · ${count}, newest first`}
         actions={
-          isOwner && (
-            <Link href="/jobs/new" className={buttonVariants()}>
-              <Plus aria-hidden />
-              New job
-            </Link>
-          )
+          <Link href="/jobs/new" className={buttonVariants()}>
+            <Plus aria-hidden />
+            New job
+          </Link>
         }
       />
 
@@ -123,7 +122,7 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
           </div>
 
           {/* Phones: one tappable card per job. */}
-          <ul className="grid gap-3 md:hidden">
+          <ul className="grid grid-cols-1 gap-3 md:hidden">
             {jobs.map((job) => (
               <li key={job.id}>
                 <Link
@@ -162,16 +161,20 @@ function JobsEmpty({ status, isOwner }: { status?: JobStatus; isOwner: boolean }
         description="Jobs show up here when they reach this status."
         action={
           <Link href="/jobs" className={buttonVariants({ variant: "secondary" })}>
-            Show all jobs
+            Show open jobs
           </Link>
         }
       />
     );
   }
-  return isOwner ? (
+  return (
     <EmptyState
-      title="No jobs yet"
-      description="Create a job for a customer's car, then add labour and parts to build the quote."
+      title={isOwner ? "No open jobs" : "No open jobs assigned to you"}
+      description={
+        isOwner
+          ? "Create a job for a customer's car, then add labour and parts to build the quote."
+          : "Jobs the owner assigns to you, and jobs you create, show up here."
+      }
       action={
         <Link href="/jobs/new" className={buttonVariants()}>
           <Plus aria-hidden />
@@ -179,7 +182,5 @@ function JobsEmpty({ status, isOwner }: { status?: JobStatus; isOwner: boolean }
         </Link>
       }
     />
-  ) : (
-    <EmptyState title="No jobs assigned to you" description="The owner assigns jobs. They will show up here." />
   );
 }

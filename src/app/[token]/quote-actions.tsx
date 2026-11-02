@@ -23,8 +23,8 @@ import { approveQuote, declineQuote } from "./actions";
 type Props = {
   /** The raw link token (already in the URL). Nothing else from the job reaches the browser as data. */
   token: string;
-  /** The total this page showed, as an integer string; approveQuote rejects if the quote changed since. */
-  expectedTotalCents: string;
+  /** The quote version this page showed; both actions reject (“quote changed”) if it is no longer current (D-049). */
+  expectedVersion: string;
   /** Total already formatted by formatCents. */
   totalText: string;
 };
@@ -33,7 +33,7 @@ type Props = {
  * Approve / Decline for a quoted job. Sticky at the bottom of a phone screen so the thumb reaches it.
  * On success the page is refreshed and its status banner (role="status") announces the new state.
  */
-export function QuoteActions({ token, expectedTotalCents, totalText }: Props) {
+export function QuoteActions({ token, expectedVersion, totalText }: Props) {
   const router = useRouter();
   const [declineOpen, setDeclineOpen] = useState(false);
   const [approveState, approve, approving] = useActionState<ActionResult | null, FormData>(async (prev, formData) => {
@@ -45,7 +45,8 @@ export function QuoteActions({ token, expectedTotalCents, totalText }: Props) {
   }, null);
   const [declineState, decline, declining] = useActionState<ActionResult | null, FormData>(async (prev, formData) => {
     const result = await declineQuote(prev, formData);
-    if (result.ok) setDeclineOpen(false);
+    setDeclineOpen(false);
+    if (!result.ok) router.refresh();
     return result;
   }, null);
   const busy = approving || declining;
@@ -58,10 +59,13 @@ export function QuoteActions({ token, expectedTotalCents, totalText }: Props) {
       <h2 id="decision-heading" className="mb-3 text-base font-semibold text-ink">
         Happy with this quote?
       </h2>
-      {approveState && !approveState.ok && !approving && (
-        <Alert tone="danger" className="mb-3">
-          {approveState.error}
-        </Alert>
+      {[approveState, declineState].map(
+        (s, i) =>
+          s && !s.ok && !busy && (
+            <Alert key={i} tone="danger" className="mb-3">
+              {s.error}
+            </Alert>
+          ),
       )}
       {(approveState?.ok || declineState?.ok) && (
         <p role="status" className="mb-3 text-sm text-muted">
@@ -84,10 +88,10 @@ export function QuoteActions({ token, expectedTotalCents, totalText }: Props) {
                 </DialogDescription>
               </DialogHeader>
               <input type="hidden" name="token" value={token} />
+              <input type="hidden" name="expected_version" value={expectedVersion} />
               <Field id="decline-reason" label="Reason (optional)" hint="For example: too expensive, or only do the brakes.">
                 <Textarea name="reason" maxLength={500} />
               </Field>
-              {declineState && !declineState.ok && !declining && <Alert tone="danger">{declineState.error}</Alert>}
               <DialogFooter>
                 <DialogClose asChild>
                   <Button type="button" variant="secondary" size="lg">
@@ -103,7 +107,7 @@ export function QuoteActions({ token, expectedTotalCents, totalText }: Props) {
         </Dialog>
         <form action={approve}>
           <input type="hidden" name="token" value={token} />
-          <input type="hidden" name="expected_total_cents" value={expectedTotalCents} />
+          <input type="hidden" name="expected_version" value={expectedVersion} />
           <Button type="submit" size="lg" className="h-14 w-full" loading={approving} disabled={busy}>
             Approve <span className="tabular-nums">{totalText}</span>
           </Button>
