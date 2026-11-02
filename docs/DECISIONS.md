@@ -56,3 +56,23 @@ Format: `D-0xx — title`. Context → decision → consequence. Newest at the b
 **D-022 — Next pinned to 16.4.3.** pnpm 11's supply-chain policy (`minimumReleaseAge`) rejected 16.4.4, published the same day. Pinned the previous patch instead of relaxing the policy. Bump after the cutoff passes.
 
 **D-023 — Customer page while a quote is being revised.** When a declined/revised job is back in `new`, the DTO has `lines: []` and `totals: null`, and the page shows "Your quote is being revised" with no buttons. Customers never see half-edited lines.
+
+**D-024 — Insert triggers apply to every role, the seed included.** A new job always lands in `new` with `vat_bps` copied from settings and `quoted_*`/`approved_*`/`collected_at` null; its `null→new` event copies `jobs.created_at`. Labour lines take `settings.hourly_rate_cents` at insert. Line writes take `FOR SHARE` on the job row, so they serialise with `transition_job`'s `FOR UPDATE` and no line can slip into a quote while it is being frozen. Consequence for D-016: the seed inserts the job (it may set `created_at`/`created_by`), adds lines while it is `new` (setting the hourly rate first for an old-rate job), then updates status/`quoted_*`/`approved_*`/`collected_at` and inserts later events directly as service role.
+
+**D-025 — Error messages beyond the shared contract.** `invalid_mechanic` (assignee is not an active mechanic), `not_linkable` (link on a `new`/`collected` job), `invalid_token_hash`, `kind_immutable`, `invalid_argument` (`rate_limit_hit`). Signed-in users without an active profile get `forbidden`; a mechanic touching another mechanic's job gets `not_found`, including line inserts (checked before RLS so the job's status never leaks). Transition notes are trimmed and cut to 500 characters instead of rejected, so a long decline reason never blocks a customer.
+
+**D-026 — `job_events.id` is a bigint identity.** Timeline order is `(created_at, id)`, which stays stable when two events share a timestamp.
+
+**D-027 — Dashboard JSON shape.** `revenue.month_end` is exclusive (first instant of next month in the garage timezone). `counts_by_status` always has all 6 keys. `workload` lists every active mechanic by name with `by_status` holding the 5 open statuses (zeros included). `ready_jobs` is ordered longest-waiting first; `days_waiting` = calendar days in the garage timezone between the latest `→ready` event and `p_now`.
+
+**D-028 — Mechanic visibility via set-returning helpers.** Customer/vehicle policies use `id in (select private.my_customer_ids())` / `my_vehicle_ids()` (security definer, active mechanic only). One permissive policy per table and action, no RLS recursion, and inactive staff see nothing.
+
+**D-029 — Default privileges.** Per-schema `revoke` from `anon` on tables, sequences and functions in `public`, plus a global `alter default privileges revoke execute on functions from public` (role `postgres`): PUBLIC's EXECUTE is a global default that a per-schema rule cannot remove. Every new function needs explicit grants; an extension created later by `postgres` will not be PUBLIC-executable, so grant it explicitly.
+
+**D-030 — Rate-limit housekeeping.** `rate_limit_hit` accepts windows of 1–3600 s and deletes rows older than 1 hour on every call, which is safe for every key given that cap.
+
+**D-031 — Small schema contracts for the app.** `jobs.vat_bps` has `default 0` only so the generated Insert type marks it optional (clients may not write it; the trigger sets it). `job_line_items.unit_price_cents` has no default: parts must state a price; for labour the client may send any value (e.g. 0) and the trigger replaces it. `vehicles.year` is nullable; `customers.email` is optional with a minimal `x@y` check. The `job_links` column grant excludes `token_hash`, so clients must list columns (`select('*')` fails). `search_customers('')` returns every visible customer; `vehicles` items are `{id, plate, make, model, year}`; phone matching needs at least 3 digits. `jobs.ref` comes from `next_job_ref()`: `GD-0001`…`GD-9999`, then `GD-10000` (pads, never truncates).
+
+**D-032 — "Identical 404" means identical apart from Next's echo of the request.** Next's 404 payload carries a per-request nonce and echoes the requested path. Both come from the attacker's own request, so they reveal nothing about whether a token exists. Tests normalise those two before comparing bodies; status, headers and all page content are identical.
+
+**D-033 — Sign-in checks the profile is active.** After a successful password check, `signIn` reads the user's own profile; inactive or profile-less accounts are signed out again and see the same generic "Email or password is incorrect." message, instead of bouncing silently between `/` and `/login`.
