@@ -3,14 +3,15 @@
 //   pnpm seed:local                         → local stack (.env.development.local)
 //   pnpm seed -- --confirm-wipe             → project in .env.local (wipes demo data!)
 //
-// Wipes customers/vehicles/jobs (and their lines/events/links), upserts the 4 staff
+// Wipes customers/vehicles/jobs (and their lines/events/quotes/links), upserts the 4 staff
 // accounts (passwords from SEED_*_PASSWORD env vars, never printed), then creates
-// 10 customers, 15 vehicles and 20 jobs across all statuses with consistent,
-// backdated timelines (D-016, D-024). Prints the active customer link(s).
+// 10 customers, 15 vehicles and 20 jobs across all 8 statuses with consistent, backdated
+// timelines: events, frozen quote versions and approvals written directly (D-016, D-024,
+// D-061). Prints the demo customer links.
 import { createHash, randomBytes } from "node:crypto";
 import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
-import type { Database } from "../src/lib/database.types";
+import { Constants, type Database, type Json } from "../src/lib/database.types";
 import { SEED_STAFF } from "./staff";
 
 /** Plaintext secrets: owner-only file mode (mode applies on create; chmod covers existing files). */
@@ -20,6 +21,7 @@ function writePrivate(path: string, content: string): void {
 }
 
 type Status = Database["public"]["Enums"]["job_status"];
+type EventInsert = Database["public"]["Tables"]["job_events"]["Insert"];
 const args = process.argv.slice(2);
 const local = args.includes("--local");
 
@@ -31,7 +33,7 @@ const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const siteUrl = (local ? "http://localhost:3000" : process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
 if (!url || !serviceKey) throw new Error("NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
-const isLocalUrl = /^https?:\/\/(127\.0\.0\.1|localhost)/.test(url);
+const isLocalUrl = ["localhost", "127.0.0.1"].includes(new URL(url).hostname);
 if (!isLocalUrl && !args.includes("--confirm-wipe")) {
   throw new Error(`Refusing to wipe ${new URL(url).host} without --confirm-wipe`);
 }
@@ -50,105 +52,150 @@ function ok(res: { error: { message: string } | null }, what: string): void {
   if (res.error) throw new Error(`${what}: ${res.error.message}`);
 }
 
-// ---------- time helpers (garage timezone Asia/Manila = UTC+8, no DST) ----------
+// ---------- time helpers (garage timezone Europe/Sofia, with DST) ----------
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 const now = Date.now();
-const MANILA = 8 * HOUR;
-const manila = new Date(now + MANILA);
-const monthStart = Date.UTC(manila.getUTCFullYear(), manila.getUTCMonth(), 1) - MANILA; // UTC instant
+const sofiaParts = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Europe/Sofia",
+  hourCycle: "h23",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
+/** Sofia's UTC offset (ms) at instant t. */
+function sofiaOffset(t: number): number {
+  const p = Object.fromEntries(sofiaParts.formatToParts(t).map((x) => [x.type, Number(x.value)]));
+  return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - Math.floor(t / 1000) * 1000;
+}
+const sofiaNow = new Date(now + sofiaOffset(now));
+const monthGuess = Date.UTC(sofiaNow.getUTCFullYear(), sofiaNow.getUTCMonth(), 1);
+const monthStart = monthGuess - sofiaOffset(monthGuess); // DST never changes on the 1st at midnight
 const iso = (t: number) => new Date(t).toISOString();
 
 // ---------- demo data ----------
 const GARAGE = {
-  garage_name: "Dela Cruz Auto Works",
-  garage_address: "128 Kalayaan Ave, Diliman, Quezon City",
-  garage_phone: "0917 555 0128",
+  garage_name: "Petrov Auto Service",
+  garage_address: "27 Tsarigradsko Shose Blvd, 1113 Sofia",
+  garage_phone: "+359 2 812 3456",
 };
-const OLD_RATE = 80_000; // ₱800/h
-const RATE = 100_000; // ₱1,000/h
-const VAT = 1200;
+const OLD_RATE = 4000; // €40.00/h
+const RATE = 4500; // €45.00/h
+const VAT = 2000; // 20%
 
-const CUSTOMERS: { name: string; phone: string; email?: string; vehicles: [string, string, string, number][] }[] = [
-  { name: "Maria Santos", phone: "0917 812 4401", email: "maria.santos@example.com", vehicles: [["NAB 4521", "Toyota", "Vios", 2019], ["DAE 7310", "Toyota", "Innova", 2016]] },
-  { name: "Jose Ramirez", phone: "0918 233 9015", vehicles: [["NCX 1184", "Mitsubishi", "Montero Sport", 2020]] },
-  { name: "Ana Villanueva", phone: "0927 645 1180", email: "ana.v@example.com", vehicles: [["ABC 1234", "Honda", "City", 2018], ["WQT 5562", "Honda", "BR-V", 2021]] },
-  { name: "Roberto Garcia", phone: "0919 402 7733", vehicles: [["NFH 9021", "Ford", "Ranger", 2017]] },
-  { name: "Liza Fernandez", phone: "0905 118 2264", email: "liza.fernandez@example.com", vehicles: [["PKO 3348", "Nissan", "Almera", 2022]] },
-  { name: "Carlo Mendoza", phone: "0936 770 4129", vehicles: [["UIO 6620", "Toyota", "Fortuner", 2015], ["CAR 2051", "Suzuki", "Ertiga", 2020]] },
-  { name: "Grace Tan", phone: "0998 301 5547", email: "grace.tan@example.com", vehicles: [["NDS 8813", "Hyundai", "Accent", 2017]] },
-  { name: "Emmanuel Aquino", phone: "0917 604 3392", vehicles: [["ZXA 4407", "Nissan", "Navara", 2019], ["BLU 9930", "Mitsubishi", "Mirage", 2021]] },
-  { name: "Rosario Lim", phone: "0920 555 7814", vehicles: [["TRE 1609", "Ford", "Everest", 2018]] },
-  { name: "Paolo Navarro", phone: "0945 287 0061", email: "paolo.navarro@example.com", vehicles: [["NGT 2745", "Toyota", "Hilux", 2020], ["KLM 8190", "Honda", "Civic", 2016]] },
+type VehicleSpec = [plate: string, make: string, model: string, year: number];
+const CUSTOMERS: { name: string; phone: string; email?: string; vehicles: VehicleSpec[] }[] = [
+  { name: "Maria Ivanova", phone: "0888 214 401", email: "maria.ivanova@example.com", vehicles: [["CA 4521 KM", "Volkswagen", "Golf", 2017], ["CB 7310 AH", "Skoda", "Fabia", 2012]] },
+  { name: "Dimitar Georgiev", phone: "0887 233 901", vehicles: [["PB 1184 TX", "Toyota", "Corolla", 2019]] },
+  { name: "Elena Petkova", phone: "0899 645 118", email: "elena.petkova@example.com", vehicles: [["CA 1234 BP", "Renault", "Clio", 2018], ["CA 5562 MX", "Dacia", "Duster", 2021]] },
+  { name: "Nikolai Todorov", phone: "0878 402 773", vehicles: [["B 9021 PA", "Ford", "Focus", 2015]] },
+  { name: "Svetlana Hristova", phone: "0885 118 226", email: "svetlana.hristova@example.com", vehicles: [["CB 3348 KT", "Hyundai", "i30", 2020]] },
+  { name: "Petar Angelov", phone: "0896 770 412", vehicles: [["CA 6620 HB", "BMW", "320d", 2014], ["C 2051 XK", "Peugeot", "308", 2019]] },
+  { name: "Yana Koleva", phone: "0884 301 554", email: "yana.koleva@example.com", vehicles: [["CA 8813 PM", "Kia", "Ceed", 2016]] },
+  { name: "Hristo Vasilev", phone: "0877 604 339", vehicles: [["A 4407 KX", "Opel", "Astra", 2013], ["CA 9930 BT", "Toyota", "RAV4", 2022]] },
+  { name: "Desislava Marinova", phone: "0882 555 781", vehicles: [["CB 1609 EP", "Citroen", "C3", 2017]] },
+  { name: "Krasimir Nikolov", phone: "0898 287 006", email: "krasimir.nikolov@example.com", vehicles: [["CA 2745 TM", "Audi", "A4", 2018], ["PA 8190 BK", "Mercedes-Benz", "C 200", 2011]] },
 ];
 
 type Line = { kind: "labour" | "part"; description: string; quantity: string; price?: number };
 const L = (description: string, hours: string): Line => ({ kind: "labour", description, quantity: hours });
 const P = (description: string, quantity: string, price: number): Line => ({ kind: "part", description, quantity, price });
 
-const WORK: Record<string, { description: string; lines: Line[] }> = {
-  oil: { description: "Change oil and oil filter, 10,000 km service", lines: [P("Engine oil 5W-30 (4L)", "1", 245_000), P("Oil filter", "1", 38_000), L("Oil change and inspection", "0.5")] },
-  brakes: { description: "Front brake pads worn, squealing when braking", lines: [P("Brake pads, front set", "1", 285_000), L("Replace front brake pads", "1.5")] },
-  caliper: { description: "Brake caliper sticking, rear left", lines: [L("Caliper service", "1.5"), P("Caliper repair kit", "2", 125_050)] },
-  aircon: { description: "Aircon not cold, cleaning and recharge", lines: [L("Aircon cleaning", "2"), P("Refrigerant R134a", "1", 120_000)] },
-  timing: { description: "Timing belt due at 100,000 km", lines: [P("Timing belt kit", "1", 680_000), L("Replace timing belt", "3.5")] },
-  battery: { description: "Hard starting in the morning, battery weak", lines: [P("Battery 2SMF", "1", 525_000), L("Battery replacement and test", "0.25")] },
-  alignment: { description: "Car pulls to the right, steering vibrates", lines: [L("Wheel alignment and balancing", "1"), P("Wheel weights", "4", 3_550)] },
-  shocks: { description: "Bouncy ride, front shock absorbers leaking", lines: [P("Front shock absorber", "2", 315_000), L("Replace front shocks", "2.5")] },
-  plugs: { description: "Rough idle, replace spark plugs", lines: [P("Iridium spark plug", "4", 65_000), L("Replace spark plugs", "0.75")] },
-  radiator: { description: "Engine running hot, radiator flush", lines: [P("Coolant (4L)", "1", 89_000), L("Radiator flush", "1")] },
-  clutch: { description: "Clutch slipping on uphill", lines: [P("Clutch kit", "1", 950_000), L("Replace clutch", "5")] },
-};
+const WORK = {
+  oil: { description: "Oil and filter change, 15,000 km service", lines: [P("Engine oil 5W-30 (5 L)", "1", 4890), P("Oil filter", "1", 1250), L("Oil change and inspection", "0.5")] },
+  brakes: { description: "Front brakes squealing when braking", lines: [P("Front brake pads (set)", "1", 5800), L("Replace front brake pads", "1.25")] },
+  caliper: { description: "Rear left brake caliper sticking", lines: [L("Caliper service", "1.5"), P("Caliper repair kit", "2", 2575)] },
+  aircon: { description: "Air conditioning not cold, service and recharge", lines: [L("A/C service and leak test", "1.25"), P("Refrigerant R1234yf (500 g)", "1", 6500)] },
+  timing: { description: "Timing belt due at 120,000 km", lines: [P("Timing belt kit with water pump", "1", 21500), L("Replace timing belt and water pump", "3.5")] },
+  battery: { description: "Hard starting in the morning, battery weak", lines: [P("Battery 74 Ah", "1", 13900), L("Battery replacement and charging test", "0.25")] },
+  alignment: { description: "Car pulls to the right, steering wheel vibrates", lines: [L("Wheel alignment and balancing", "1"), P("Wheel weights", "4", 175)] },
+  shocks: { description: "Bouncy ride, front shock absorbers leaking", lines: [P("Front shock absorber", "2", 7450), L("Replace front shock absorbers", "2.5")] },
+  plugs: { description: "Rough idle, replace spark plugs", lines: [P("Iridium spark plug", "4", 1390), L("Replace spark plugs", "0.75")] },
+  coolant: { description: "Engine running hot, coolant flush", lines: [P("Coolant G13 (5 L)", "1", 2290), L("Cooling system flush", "1")] },
+  clutch: { description: "Clutch slipping on uphill starts", lines: [P("Clutch kit with flywheel", "1", 48900), L("Replace clutch and flywheel", "6")] },
+} satisfies Record<string, { description: string; lines: Line[] }>;
+
+/**
+ * One step of a job's history, `gap` hours after the previous one. `quoted` freezes a new quote
+ * version from the lines at that moment (after `add`/`remove`); from quoted/approved/in_progress
+ * it is the line-edit re-quote the DB trigger writes (D-050).
+ */
+type Step =
+  | { to: "quoted"; gap: number; add?: Line[]; remove?: string[]; by?: "owner" }
+  | { to: "approved"; gap: number; phone?: string } // phone: owner's note (D-051); else via link
+  | { to: "declined"; gap: number; note?: string }
+  | { to: "in_progress" | "ready"; gap: number; note?: string }
+  | { to: "collected"; gap: number }
+  | { to: "cancelled"; gap: number; note: string };
 
 interface JobSpec {
-  vehicle: string; // plate
+  vehicle: string; // plate as listed above
   mechanic: 1 | 2 | 3;
   work: keyof typeof WORK;
-  status: Status;
-  /** When the last transition happened (ms since epoch). */
+  /** When the last step happened (ms since epoch); earlier steps are counted back from here. */
   lastAt: number;
+  steps: Step[];
   oldRate?: boolean;
-  declinedThenRequoted?: boolean;
-  link?: boolean;
+  /** Print this job's customer link (PRD §8). */
+  demoLink?: boolean;
 }
+
+const REQUOTE_NOTE = "Lines changed — new quote"; // as written by private.line_items_requote
+const quote = (gap = 2): Step => ({ to: "quoted", gap });
+const approve = (gap = 3): Step => ({ to: "approved", gap });
+const start = (gap = 16): Step => ({ to: "in_progress", gap });
+const ready = (gap = 6): Step => ({ to: "ready", gap });
+const collect = (gap = 20): Step => ({ to: "collected", gap });
+const HAPPY = [quote(), approve(), start(), ready()];
 
 // Collected-this-month times spread between month start and now (works on the 1st too).
 const inThisMonth = (i: number, of: number) => monthStart + ((now - monthStart) * (i + 1)) / (of + 1);
 
 const JOBS: JobSpec[] = [
-  // Collected last month at the OLD rate (₱800/h) — excluded from this month's revenue.
-  { vehicle: "TRE 1609", mechanic: 1, work: "timing", status: "collected", lastAt: monthStart - 9 * DAY, oldRate: true },
-  { vehicle: "UIO 6620", mechanic: 2, work: "shocks", status: "collected", lastAt: monthStart - 3 * DAY, oldRate: true },
-  // Quoted at the old rate, still open: the rate-snapshot rule in action (FR4 worked example: ₱4,145.12).
-  { vehicle: "NCX 1184", mechanic: 3, work: "caliper", status: "in_progress", lastAt: now - 5 * HOUR, oldRate: true },
-  { vehicle: "PKO 3348", mechanic: 1, work: "clutch", status: "approved", lastAt: now - 20 * HOUR, oldRate: true },
+  // Collected last month at the OLD rate (€40.00/h): outside this month's revenue.
+  { vehicle: "CB 1609 EP", mechanic: 1, work: "timing", oldRate: true, lastAt: monthStart - 9 * DAY, steps: [...HAPPY, collect()] },
+  { vehicle: "CA 6620 HB", mechanic: 2, work: "shocks", oldRate: true, lastAt: monthStart - 3 * DAY, steps: [...HAPPY, collect()] },
+  // Quoted at the old rate before it went up, still open: the rate-snapshot rule (FR4).
+  { vehicle: "PB 1184 TX", mechanic: 3, work: "caliper", oldRate: true, lastAt: now - 5 * HOUR, steps: [quote(), approve(30), start(20)] },
   // Collected this month.
-  { vehicle: "NAB 4521", mechanic: 1, work: "oil", status: "collected", lastAt: inThisMonth(0, 3) },
-  { vehicle: "NDS 8813", mechanic: 2, work: "battery", status: "collected", lastAt: inThisMonth(1, 3) },
-  { vehicle: "ZXA 4407", mechanic: 3, work: "alignment", status: "collected", lastAt: inThisMonth(2, 3) },
-  // Ready for collection.
-  { vehicle: "DAE 7310", mechanic: 2, work: "aircon", status: "ready", lastAt: now - 2 * DAY - 3 * HOUR, link: true },
-  { vehicle: "NGT 2745", mechanic: 3, work: "brakes", status: "ready", lastAt: now - 1 * DAY - 2 * HOUR },
-  { vehicle: "CAR 2051", mechanic: 1, work: "plugs", status: "ready", lastAt: now - 4 * HOUR },
-  // In progress.
-  { vehicle: "WQT 5562", mechanic: 2, work: "radiator", status: "in_progress", lastAt: now - 3 * HOUR },
-  { vehicle: "KLM 8190", mechanic: 1, work: "shocks", status: "in_progress", lastAt: now - 1 * DAY },
-  // Approved by the customer, work not started.
-  { vehicle: "NFH 9021", mechanic: 3, work: "timing", status: "approved", lastAt: now - 6 * HOUR },
-  { vehicle: "BLU 9930", mechanic: 2, work: "oil", status: "approved", lastAt: now - 2 * HOUR },
-  // Quoted, waiting for the customer. One was declined and re-quoted; it has the active demo link.
-  { vehicle: "ABC 1234", mechanic: 1, work: "aircon", status: "quoted", lastAt: now - 90 * 60_000, declinedThenRequoted: true, link: true },
-  { vehicle: "NAB 4521", mechanic: 3, work: "brakes", status: "quoted", lastAt: now - 4 * HOUR },
-  { vehicle: "TRE 1609", mechanic: 2, work: "battery", status: "quoted", lastAt: now - 26 * HOUR },
+  { vehicle: "CA 4521 KM", mechanic: 1, work: "oil", lastAt: inThisMonth(0, 3), steps: [...HAPPY, collect(4)] },
+  { vehicle: "CA 8813 PM", mechanic: 2, work: "battery", lastAt: inThisMonth(1, 3), steps: [quote(1), { to: "approved", gap: 1, phone: "Approved by phone, wants the car back today." }, start(1), ready(1), collect(3)] },
+  { vehicle: "A 4407 KX", mechanic: 3, work: "alignment", lastAt: inThisMonth(2, 3), steps: [...HAPPY, collect(5)] },
+  // Ready for collection; one went back for rework (Ready → In progress → Ready).
+  { vehicle: "CB 7310 AH", mechanic: 2, work: "aircon", lastAt: now - 2 * DAY - 3 * HOUR, demoLink: true, steps: [...HAPPY] },
+  { vehicle: "CA 2745 TM", mechanic: 3, work: "brakes", lastAt: now - 1 * DAY - 2 * HOUR, steps: [...HAPPY, { to: "in_progress", gap: 2, note: "Squeak still audible on the test drive, rechecking the pads." }, ready(3)] },
+  // In progress. Extra work after approval: v1 approved, discs found worn, v2 approved too.
+  { vehicle: "CA 5562 MX", mechanic: 2, work: "coolant", lastAt: now - 3 * HOUR, steps: [quote(), approve(), start(5)] },
+  {
+    vehicle: "PA 8190 BK", mechanic: 1, work: "brakes", lastAt: now - 1 * DAY, demoLink: true,
+    steps: [quote(), approve(), start(18), { to: "quoted", gap: 2, add: [P("Brake disc, front", "2", 4250), L("Replace front brake discs", "0.75")] }, approve(2), start(1)],
+  },
+  // Approved, work not started: once by the customer's link, once by the owner on the phone.
+  { vehicle: "B 9021 PA", mechanic: 3, work: "timing", lastAt: now - 6 * HOUR, steps: [quote(), approve(5)] },
+  { vehicle: "CA 9930 BT", mechanic: 2, work: "oil", lastAt: now - 2 * HOUR, steps: [quote(), { to: "approved", gap: 1, phone: "Customer called at 10:15 and approved the quote." }] },
+  // Quoted, waiting for the customer. One was declined, adjusted and re-quoted (v2).
+  {
+    vehicle: "CA 1234 BP", mechanic: 1, work: "aircon", lastAt: now - 90 * 60_000, demoLink: true,
+    steps: [
+      { to: "quoted", gap: 2, add: [P("Cabin air filter", "1", 1890)] },
+      { to: "declined", gap: 3, note: "Please skip the cabin air filter, I'll replace it myself." },
+      { to: "quoted", gap: 1, remove: ["Cabin air filter"] },
+    ],
+  },
+  { vehicle: "CA 4521 KM", mechanic: 3, work: "brakes", lastAt: now - 4 * HOUR, steps: [quote()] },
+  // Declined, with the customer's reason.
+  { vehicle: "C 2051 XK", mechanic: 2, work: "clutch", lastAt: now - 20 * HOUR, demoLink: true, steps: [quote(), { to: "declined", gap: 5, note: "Too expensive right now, I'll get a second quote." }] },
+  { vehicle: "CB 3348 KT", mechanic: 1, work: "shocks", lastAt: now - 2 * DAY, steps: [quote(), { to: "declined", gap: 26, note: "We are selling the car next month." }] },
+  // Cancelled by the owner, with a reason.
+  { vehicle: "CA 6620 HB", mechanic: 3, work: "timing", lastAt: now - 3 * DAY, steps: [quote(), { to: "cancelled", gap: 30, note: "Customer did not answer for a week, car collected unrepaired." }] },
+  { vehicle: "CB 3348 KT", mechanic: 2, work: "battery", lastAt: now - 4 * DAY, steps: [quote(), approve(), { to: "cancelled", gap: 4, note: "Battery out of stock for two weeks, customer bought one elsewhere." }] },
   // New: lines being prepared.
-  { vehicle: "UIO 6620", mechanic: 3, work: "plugs", status: "new", lastAt: now - 40 * 60_000 },
-  { vehicle: "NDS 8813", mechanic: 1, work: "radiator", status: "new", lastAt: now - 2 * HOUR },
-  { vehicle: "KLM 8190", mechanic: 2, work: "alignment", status: "new", lastAt: now - 15 * 60_000 },
+  { vehicle: "PB 1184 TX", mechanic: 1, work: "plugs", lastAt: now - 40 * 60_000, steps: [] },
+  { vehicle: "PA 8190 BK", mechanic: 3, work: "alignment", lastAt: now - 15 * 60_000, steps: [] },
 ];
-
-const FLOW: Status[] = ["new", "quoted", "approved", "in_progress", "ready", "collected"];
-// Gap before each step, counted back from lastAt (so timelines read naturally).
-const GAP: Record<Status, number> = { new: 0, quoted: 3 * HOUR, approved: 5 * HOUR, in_progress: 20 * HOUR, ready: 26 * HOUR, collected: 22 * HOUR };
 
 // ---------- run ----------
 async function upsertStaff(): Promise<Map<string, string>> {
@@ -186,7 +233,7 @@ async function upsertStaff(): Promise<Map<string, string>> {
 }
 
 async function wipe() {
-  ok(await db.from("jobs").delete().not("id", "is", null), "wipe jobs"); // cascades lines/events/links
+  ok(await db.from("jobs").delete().not("id", "is", null), "wipe jobs"); // cascades lines/events/quotes/links
   ok(await db.from("vehicles").delete().not("id", "is", null), "wipe vehicles");
   ok(await db.from("customers").delete().not("id", "is", null), "wipe customers");
 }
@@ -200,83 +247,119 @@ function linkToken() {
   return { token, hash: createHash("sha256").update(token).digest("hex") };
 }
 
-async function createJob(spec: JobSpec, vehicleId: string, ownerId: string, mechanicId: string, links: string[]) {
-  const target = FLOW.indexOf(spec.status);
-  // Event times: walk back from lastAt through the flow.
-  const times: number[] = [];
-  let t = spec.lastAt;
-  for (let i = target; i >= 0; i--) {
-    times[i] = t;
-    t -= GAP[FLOW[i]] || 0;
-  }
-  const extraForDecline = spec.declinedThenRequoted ? 6 * HOUR : 0;
-  const createdAt = Math.min(times[0], (times[1] ?? spec.lastAt) - 2 * HOUR - extraForDecline - HOUR);
-  times[0] = createdAt;
+const lineRow = (jobId: string, l: Line) => ({
+  job_id: jobId,
+  kind: l.kind,
+  description: l.description,
+  quantity: Number(l.quantity),
+  unit_price_cents: l.price ?? 0, // labour: replaced by the settings rate (DB trigger)
+});
 
+interface Figures {
+  version: number;
+  subtotal: number;
+  vat: number;
+  total: number;
+  at: number;
+}
+
+/**
+ * Writes one job's whole history while the row is still `new` (so the line guard lets the
+ * service role edit lines and no re-quote trigger fires), then sets the final state once.
+ */
+async function createJob(spec: JobSpec, vehicleId: string, ownerId: string, mechanicId: string, links: string[]) {
+  const gaps = spec.steps.reduce((sum, s) => sum + s.gap * HOUR, 0);
+  const createdAt = spec.lastAt - gaps - 2 * HOUR; // inspection before the first quote
   const job = must(
     await db
       .from("jobs")
-      .insert({ vehicle_id: vehicleId, assigned_mechanic_id: mechanicId, description: WORK[spec.work].description, created_by: ownerId, created_at: iso(createdAt) })
-      .select("id")
+      .insert({ vehicle_id: vehicleId, assigned_mechanic_id: mechanicId, description: WORK[spec.work].description, created_by: mechanicId, created_at: iso(createdAt) })
+      .select("id, vat_bps")
       .single(),
     "insert job",
   );
-  const lines = WORK[spec.work].lines;
-  const toInsert = spec.declinedThenRequoted ? [...lines, P("Cabin air filter", "1", 65_000)] : lines;
-  ok(
-    await db.from("job_line_items").insert(
-      toInsert.map((l) => ({ job_id: job.id, kind: l.kind, description: l.description, quantity: Number(l.quantity), unit_price_cents: l.price ?? 0 })),
-    ),
-    "insert lines",
-  );
-  if (target === 0) return;
+  ok(await db.from("job_line_items").insert(WORK[spec.work].lines.map((l) => lineRow(job.id, l))), "insert lines");
 
-  const events: Database["public"]["Tables"]["job_events"]["Insert"][] = [];
-  if (spec.declinedThenRequoted) {
-    // First quote included a cabin filter; customer declined; staff removed it and re-quoted.
-    const firstQuote = times[1] - 6 * HOUR;
-    events.push({ job_id: job.id, from_status: "new", to_status: "quoted", actor_type: "staff", actor_id: mechanicId, created_at: iso(firstQuote) });
-    events.push({ job_id: job.id, from_status: "quoted", to_status: "new", actor_type: "customer", actor_id: null, note: "Please skip the cabin air filter, I'll replace it myself.", created_at: iso(firstQuote + 2 * HOUR) });
-    ok(await db.from("job_line_items").delete().eq("job_id", job.id).eq("description", "Cabin air filter"), "requote edit");
-  }
-  for (let i = 1; i <= target; i++) {
-    const to = FLOW[i];
-    const customer = to === "approved";
-    events.push({
-      job_id: job.id,
-      from_status: FLOW[i - 1],
-      to_status: to,
-      actor_type: customer ? "customer" : "staff",
-      actor_id: customer ? null : i === 5 ? ownerId : mechanicId, // owner hands the car back
-      created_at: iso(times[i]),
-    });
-  }
-  ok(await db.from("job_events").insert(events), "insert events");
+  const events: EventInsert[] = [];
+  const quotes: Database["public"]["Tables"]["job_quotes"]["Insert"][] = [];
+  let status: Status = "new";
+  let quoted = null as Figures | null;
+  let approved = null as Figures | null;
+  let collectedAt: number | null = null;
+  let link: { token: string; hash: string } | null = null;
+  let t = spec.lastAt - gaps;
 
-  const totals = must(await db.from("job_totals").select("subtotal_cents, vat_cents, total_cents").eq("job_id", job.id).single(), "totals");
-  const at = (s: Status) => (FLOW.indexOf(s) <= target ? iso(times[FLOW.indexOf(s)]) : null);
+  for (const step of spec.steps) {
+    t += step.gap * HOUR;
+    const from = status;
+    let detail: Partial<EventInsert>;
+
+    if (step.to === "quoted") {
+      if (step.add) ok(await db.from("job_line_items").insert(step.add.map((l) => lineRow(job.id, l))), "add lines");
+      for (const d of step.remove ?? []) ok(await db.from("job_line_items").delete().eq("job_id", job.id).eq("description", d), "remove line");
+      const totals = must(await db.from("job_totals").select("subtotal_cents, vat_cents, total_cents").eq("job_id", job.id).single(), "totals");
+      const lines = must(
+        await db.from("job_line_items").select("id, kind, description, quantity::text, unit_price_cents, line_total_cents").eq("job_id", job.id).order("created_at").order("id"),
+        "lines",
+      );
+      quoted = { version: (quoted?.version ?? 0) + 1, subtotal: totals.subtotal_cents!, vat: totals.vat_cents!, total: totals.total_cents!, at: t };
+      const actor = step.by === "owner" ? ownerId : mechanicId;
+      quotes.push({ job_id: job.id, version: quoted.version, subtotal_cents: quoted.subtotal, vat_cents: quoted.vat, total_cents: quoted.total, vat_bps: job.vat_bps, lines: lines as unknown as Json[], created_by: actor, created_at: iso(t) });
+      detail = { actor_id: actor, quote_version: quoted.version, total_cents: quoted.total, note: ["quoted", "approved", "in_progress"].includes(from) ? REQUOTE_NOTE : null };
+      // The first quote is sent to the customer as a link.
+      link ??= linkToken();
+    } else if (step.to === "approved" || step.to === "declined") {
+      if (!quoted || from !== "quoted") throw new Error(`${spec.vehicle}: ${step.to} needs a quote`);
+      const phone = step.to === "approved" ? step.phone : undefined;
+      detail = {
+        actor_type: phone ? "staff" : "customer",
+        actor_id: phone ? ownerId : null,
+        channel: phone ? "phone" : "link",
+        quote_version: quoted.version,
+        total_cents: quoted.total,
+        note: phone ?? (step.to === "declined" ? step.note ?? null : null),
+      };
+      if (step.to === "approved") approved = { ...quoted, at: t };
+    } else {
+      if (step.to === "collected") collectedAt = t;
+      detail = {
+        actor_id: step.to === "collected" || step.to === "cancelled" ? ownerId : mechanicId, // owner hands back / cancels
+        note: "note" in step ? step.note ?? null : null,
+      };
+    }
+    events.push({ job_id: job.id, from_status: from, to_status: step.to, actor_type: "staff", created_at: iso(t), ...detail });
+    status = step.to;
+  }
+
+  if (events.length) ok(await db.from("job_events").insert(events), "insert events");
+  if (quotes.length) ok(await db.from("job_quotes").insert(quotes), "insert quotes");
+  if (link) {
+    const firstQuote = quotes[0].created_at!;
+    ok(await db.from("job_links").insert({ job_id: job.id, token_hash: link.hash, created_by: mechanicId, created_at: iso(Date.parse(firstQuote) + 10 * 60_000) }), "insert link");
+    if (spec.demoLink) links.push(`${status.padEnd(11)} ${siteUrl}/${link.token}`);
+  }
+  if (status === "new") return;
+
   ok(
     await db
       .from("jobs")
       .update({
-        status: spec.status,
-        quoted_subtotal_cents: totals.subtotal_cents,
-        quoted_vat_cents: totals.vat_cents,
-        quoted_total_cents: totals.total_cents,
-        quoted_at: at("quoted"),
-        approved_at: at("approved"),
-        approved_total_cents: target >= 2 ? totals.total_cents : null,
-        collected_at: at("collected"),
+        status,
+        quote_version: quoted?.version ?? null,
+        quoted_subtotal_cents: quoted?.subtotal ?? null,
+        quoted_vat_cents: quoted?.vat ?? null,
+        quoted_total_cents: quoted?.total ?? null,
+        quoted_at: quoted ? iso(quoted.at) : null,
+        approved_quote_version: approved?.version ?? null,
+        approved_subtotal_cents: approved?.subtotal ?? null,
+        approved_vat_cents: approved?.vat ?? null,
+        approved_total_cents: approved?.total ?? null,
+        approved_at: approved ? iso(approved.at) : null,
+        collected_at: collectedAt === null ? null : iso(collectedAt),
       })
       .eq("id", job.id),
     "advance job",
   );
-
-  if (spec.link) {
-    const { token, hash } = linkToken();
-    ok(await db.from("job_links").insert({ job_id: job.id, token_hash: hash, created_by: ownerId, created_at: iso(times[1] + 10 * 60_000) }), "insert link");
-    links.push(`${spec.status.padEnd(10)} ${siteUrl}/${token}`);
-  }
 }
 
 async function main() {
@@ -295,7 +378,7 @@ async function main() {
     );
     for (const [plate, make, model, year] of c.vehicles) {
       const v = must(
-        await db.from("vehicles").insert({ customer_id: customer.id, plate, make, model, year }).select("id, plate").single(),
+        await db.from("vehicles").insert({ customer_id: customer.id, plate, make, model, year }).select("id").single(),
         `vehicle ${plate}`,
       );
       vehicleIds.set(plate, v.id);
@@ -303,7 +386,7 @@ async function main() {
   }
 
   const links: string[] = [];
-  // Old-rate jobs first, then the rate goes up to ₱1,000/h for everything after (FR4 rate rule).
+  // Old-rate jobs first, then the rate goes up to €45.00/h for everything after (FR4 rate rule).
   for (const spec of JOBS.filter((j) => j.oldRate)) {
     await createJob(spec, vehicleIds.get(spec.vehicle)!, ownerId, mechanicIds[spec.mechanic - 1], links);
   }
@@ -314,12 +397,12 @@ async function main() {
 
   // Verify counts by status.
   const rows = must(await db.from("jobs").select("status"), "count");
-  const counts = Object.fromEntries(FLOW.map((s) => [s, rows.filter((r) => r.status === s).length]));
+  const counts = Object.fromEntries(Constants.public.Enums.job_status.map((s) => [s, rows.filter((r) => r.status === s).length]));
   const customers = must(await db.from("customers").select("id"), "count customers").length;
   const vehicles = must(await db.from("vehicles").select("id"), "count vehicles").length;
   console.log(`seed: ${customers} customers, ${vehicles} vehicles, ${rows.length} jobs`);
   console.log(`seed: by status ${JSON.stringify(counts)}`);
-  console.log("seed: active customer links:");
+  console.log("seed: demo customer links:");
   links.forEach((l) => console.log(`  ${l}`));
 
   if (!local && existsSync("CREDENTIALS.local.md")) {
