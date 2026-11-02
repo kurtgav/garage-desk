@@ -7,29 +7,32 @@ Owners: **BE** backend-data-engineer · **SEC** security-engineer · **FE** fron
 ## Shared contracts (read before any task)
 
 ### Database (`supabase/migrations/`)
-- Enum `job_status`: `new, quoted, approved, in_progress, ready, collected`. Enum `staff_role`: `owner, mechanic`. Enum `line_kind`: `labour, part`. Enum `actor_type`: `staff, customer`.
+- Enum `job_status`: `new, quoted, declined, approved, in_progress, ready, collected, cancelled` (D-047). Enum `approval_channel`: `link, phone`. Enum `staff_role`: `owner, mechanic`. Enum `line_kind`: `labour, part`. Enum `actor_type`: `staff, customer`.
 - Tables exactly as PRD §5, plus `rate_limits(key text, window_start timestamptz, count int, pk(key, window_start))`.
 - `jobs.ref` default `'GD-' || lpad(nextval('job_ref_seq')::text, 4, '0')`, unique.
-- Money columns: `unit_price_cents int`, all totals `bigint`. `line_total_cents bigint generated always as (round(quantity * unit_price_cents)::bigint) stored`.
-- Triggers: normalise `customers.phone` (digits only) and `vehicles.plate` (upper, strip spaces/dashes); `jobs` before insert → `vat_bps` from settings, `status='new'`, `created_by=auth.uid()` if null; `jobs` after insert → event `null→new`; `job_line_items` before insert → labour `unit_price_cents` from `settings.hourly_rate_cents`; before insert/update/delete → parent job must be `new`.
+- Money columns: `unit_price_cents int`, job/quote totals `bigint`. `line_total_cents numeric(16,2) generated always as (quantity * unit_price_cents) stored` — exact, never rounded (D-048).
+- `job_quotes(id bigserial, job_id, version int, subtotal_cents, vat_cents, total_cents bigint, vat_bps int, lines jsonb, created_by, created_at, unique(job_id, version))` — immutable (D-049). `jobs` adds `quote_version int`, `approved_quote_version int`, `approved_subtotal_cents bigint`, `approved_vat_cents bigint`. `job_events` adds `channel approval_channel`, `quote_version int`, `total_cents bigint`.
+- Triggers: normalise `customers.phone` (digits only) and `vehicles.plate` (upper, strip spaces/dashes); `jobs` before insert → `vat_bps` from settings, `status='new'`, `created_by=auth.uid()` if null; `jobs` after insert → event `null→new`; `job_line_items` before insert → labour `unit_price_cents` from `settings.hourly_rate_cents`; before insert/update/delete → parent job status in `new, quoted, declined, approved, in_progress` else `job_locked`; after statement → automatic re-quote for `quoted/approved/in_progress` (D-050). `jobs` before insert → mechanic caller forces `assigned_mechanic_id = auth.uid()`; changing `assigned_mechanic_id` is owner only (D-054).
 - Helpers (schema `private`, security definer, `search_path=''`): `private.staff_role() returns staff_role` (null if no active profile), `private.is_owner()`, `private.is_staff()`, `private.can_access_job(job_id uuid)` (owner, or assigned mechanic).
 - Functions in `public` (all `set search_path = ''`):
-  - `compute_job_totals(p_job_id uuid) returns table(subtotal_cents bigint, vat_cents bigint, total_cents bigint)` — the only money arithmetic. View `job_totals` (`security_invoker = true`) exposes it per job.
-  - `transition_job(p_job_id uuid, p_to_status job_status, p_note text default null, p_link_token_hash text default null) returns jobs` — D-009.
+  - `compute_job_totals(p_job_id uuid) returns table(subtotal_cents bigint, vat_cents bigint, total_cents bigint)` — the only money arithmetic; subtotal = net = round(Σ exact lines), vat = round(Σ exact × bps/10000), total = net + vat (D-048). View `job_totals` (`security_invoker = true`) exposes it per job.
+  - `transition_job(p_job_id uuid, p_to_status job_status, p_note text default null, p_link_token_hash text default null, p_expected_version int default null) returns jobs` — transition table in PRD FR5. Approve (customer link, or owner phone approval in staff mode) requires `p_expected_version = quote_version` else `quote_changed` (D-049, D-051). Phone approval and cancel need a note (`note_required`); cancel/phone approval are owner only.
   - `create_job_link(p_job_id uuid, p_token_hash text) returns timestamptz` — staff; revokes the active link and inserts the new hash atomically (D-013, D-015).
+  - `revoke_job_link(p_job_id uuid) returns boolean` — staff (owner or assigned mechanic), any status; true if a link was revoked (D-039).
   - `public_job_by_token_hash(p_token_hash text) returns jsonb` — service role only, whitelisted DTO or null, touches `last_viewed_at` (D-014).
   - `rate_limit_hit(p_key text, p_max int, p_window_seconds int) returns boolean` — service role only, true when over the limit (D-012).
-  - `get_dashboard(p_now timestamptz default now()) returns jsonb` — owner only (raises otherwise): `{counts_by_status, ready_jobs[], revenue:{excl_vat_cents, incl_vat_cents, month_start, month_end}, workload[]}`.
+  - `get_dashboard(p_now timestamptz default now()) returns jsonb` — owner only (raises otherwise): `{counts_by_status (all 8), ready_jobs[], revenue:{net_cents, jobs_count, month_start, month_end}, workload[]}` (D-056; open = not collected/cancelled).
   - `search_customers(p_query text) returns setof customers` (security invoker) — name ilike, phone digits ilike, plate normalised ilike.
-- Errors raised with stable messages the app maps to UI text: `invalid_transition`, `forbidden`, `no_line_items`, `job_locked`, `not_found`.
+- Errors raised with stable messages the app maps to UI text: `invalid_transition`, `forbidden`, `no_line_items`, `job_locked`, `not_found`, `quote_changed`, `note_required`.
 
 ### App (`src/`)
 - `src/lib/supabase/server.ts` (cookie client, user JWT), `src/lib/supabase/admin.ts` (`import 'server-only'`, secret key), `src/proxy.ts` (session refresh).
-- `src/lib/money.ts`: `formatCents(cents)`, `parsePesoToCents(input)`, `bpsToPercentString(bps)`, `percentToBps(input)`. `src/lib/status.ts`: labels, badge tones, `STAFF_TRANSITIONS`.
+- `src/lib/money.ts`: `formatCents(cents)` → `€1,234.56`, `formatLineAmount(cents: number | string)` → exact (2–4 decimals), `parseMoneyToCents(input)` (replaces `parsePesoToCents`, D-055), `bpsToPercentString(bps)`, `percentToBps(input)`. `src/lib/format.ts`: `GARAGE_TZ = "Europe/Sofia"`, Bulgarian plate/phone formatting. `src/lib/status.ts`: 8 statuses, labels, badge tones, `STAFF_TRANSITIONS` (incl. rework; cancel owner-only), `OPEN_STATUSES`, `LINE_EDITABLE_STATUSES`, `LINKABLE_STATUSES`, customer texts.
 - `src/lib/tokens.ts` (server-only): `generateLinkToken()`, `hashLinkToken(token)`.
 - `src/lib/public-job.ts` (server-only): `PUBLIC_JOB_KEYS`, `getPublicJob(token)`.
 - Staff routes: `/login`, `/jobs`, `/jobs/new`, `/jobs/[id]`, `/customers`, `/customers/new`, `/customers/[id]`, `/dashboard`, `/settings`. Public: `/[token]`.
 - Server actions return `{ ok: true } | { ok: false, error: string }` and never echo DB errors verbatim.
+- Test ids: `total-amount`, `subtotal-amount` (net), `vat-amount`, `quote-version`, `revenue-net`, `customer-link-url`, `count-{status}`.
 
 ### Tests
 - `tests/unit/**` (no DB), `tests/integration/**` (local Supabase; creates its own users via admin API; fixed clock via `p_now`), `e2e/**` (Playwright; projects `desktop` and `mobile-375`). `E2E_BASE_URL` switches local ↔ production.
@@ -57,6 +60,17 @@ Slice: owner creates job → adds lines → quote → create customer link → c
 | 2.4 Supabase + Vercel + GitHub | OPS | `supabase/` link, Vercel env, repo | migrations pushed, envs set (prod + preview), auto-deploy from `main` | live URL smoke: login + public 404 |
 
 Order: 2.1 → (2.2 ∥ 2.4) → 2.3. **Exit: slice live on Vercel.**
+
+## Phase 2.5 — Client answers (Mon/Tue)
+
+Applies PRD §12 answers (D-047…D-056). Ends like every phase (suite, security review, commit, deploy, UPDATES).
+
+| Task | Owner | Files | Done when |
+|---|---|---|---|
+| 2.5a DB + lib + actions | BE | new migrations; `src/lib/{money,format,status,public-job}.ts`, `src/lib/data/**`, server actions, `tests/unit`, `tests/integration` | PRD FR2–FR8 ACs as integration tests; old behaviours removed |
+| 2.5b UI | FE | pages/components only | net/VAT/total everywhere, quote version, phone approval (owner), cancel (owner), rework, re-quote, declined/cancelled states, mechanics create customers/vehicles/jobs, timeline shows approvals with channel/version/total |
+| 2.5c Seed | BE | `scripts/seed.ts`, `scripts/staff.ts` | PRD §8 (8 statuses, scenarios), Bulgarian data |
+| 2.5d E2E | QA | `e2e/**` | slice incl. extra-work re-quote and stale approve at 375px |
 
 ## Phase 3 — Full features + security review (Wed)
 
