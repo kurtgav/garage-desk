@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Secret scan, lint, typecheck, unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      # pnpm version comes from package.json `packageManager`
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Secret scan (all tracked files)
+        run: node scripts/secrets-scan.mjs --all
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  integration-e2e:
+    name: Integration, build + bundle scan, e2e
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: true
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start local Supabase
+        run: supabase start
+      - name: Reset local database (apply all migrations)
+        run: supabase db reset
+      # Writes .env.development.local (local demo keys) without printing values.
+      # `next dev` reads it itself; other steps source it.
+      - name: Write app env from local stack
+        run: node scripts/ci-write-env.mjs
+      - name: Integration tests
+        run: |
+          set -a; . ./.env.development.local; set +a
+          pnpm test:integration
+      - name: Build
+        run: |
+          set -a; . ./.env.development.local; set +a
+          pnpm build
+      - name: Client bundle secret scan
+        run: pnpm bundle:scan
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      # Playwright starts `pnpm dev` itself when E2E_BASE_URL is unset.
+      - name: E2E tests
+        run: pnpm test:e2e
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
