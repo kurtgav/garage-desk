@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { getMyProfile } from "@/lib/data/profile";
-import { DetailsForm, PasswordForm, PhotoForm } from "./profile-forms";
+import { DetailsForm, PasswordForm, PhotoForm, SignOutEverywhere } from "./profile-forms";
 
 export const metadata: Metadata = { title: "Profile" };
 
@@ -39,6 +39,21 @@ export default async function ProfilePage() {
           </CardHeader>
           <CardContent>
             <PasswordForm />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div>
+              <CardTitle>Sign out everywhere</CardTitle>
+              <CardDescription className="mt-1">
+                Lost a phone, or signed in on a shared computer? This ends every session of your account, this one
+                included.
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <SignOutEverywhere />
           </CardContent>
         </Card>
       </div>

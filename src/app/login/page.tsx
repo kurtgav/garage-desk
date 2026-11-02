@@ -6,14 +6,15 @@ import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "Sign in" };
 
-export default async function LoginPage() {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ signed_out?: string }> }) {
   const staff = await getStaff();
   if (staff) redirect(roleHome(staff.role));
+  const { signed_out } = await searchParams;
 
   return (
     // No public sign-up (PRD FR1): accounts are created by the owner.
     <AuthShell title="Sign in" intro="Staff only. Ask the garage owner for an account.">
-      <LoginForm />
+      <LoginForm notice={signed_out === "everywhere" ? "You are signed out on every device." : undefined} />
     </AuthShell>
   );
 }

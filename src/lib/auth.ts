@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { notFound, redirect } from "next/navigation";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export type StaffRole = "owner" | "mechanic";
@@ -10,6 +11,8 @@ export interface Staff {
   /** Sign-in email (shell user card). */
   email: string;
   role: StaffRole;
+  /** Signed in with a temporary password from the owner: must set their own first (D-106). */
+  mustChangePassword: boolean;
 }
 
 /** Current staff member, or null (not signed in, no profile, or inactive). Cached per request. */
@@ -19,18 +22,30 @@ export const getStaff = cache(async (): Promise<Staff | null> => {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
-  const { data } = await supabase
+  // Server read keyed by the verified user: must_change_password is not granted to `authenticated` (D-106).
+  const { data } = await createAdminClient()
     .from("profiles")
-    .select("id, full_name, role, active")
+    .select("id, full_name, role, active, must_change_password")
     .eq("id", user.id)
     .maybeSingle();
   if (!data || !data.active) return null;
-  return { id: data.id, fullName: data.full_name, email: user.email ?? "", role: data.role as StaffRole };
+  return {
+    id: data.id,
+    fullName: data.full_name,
+    email: user.email ?? "",
+    role: data.role as StaffRole,
+    mustChangePassword: data.must_change_password,
+  };
 });
 
+/**
+ * Staff who may use the app: signed out → /login; a temporary password → /set-password until they choose their
+ * own (D-106). Every staff page (via the layout) and every staff action goes through here.
+ */
 export async function requireStaff(): Promise<Staff> {
   const staff = await getStaff();
   if (!staff) redirect("/login");
+  if (staff.mustChangePassword) redirect("/set-password");
   return staff;
 }
 

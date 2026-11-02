@@ -15,6 +15,7 @@ import {
   OWNER_STATE,
   readUsers,
   signIn,
+  strongPassword,
   tag,
 } from "./support";
 
@@ -36,13 +37,32 @@ async function takeTempPassword(page: Page): Promise<string> {
   return password;
 }
 
+/**
+ * /set-password after a temporary password (D-106): the temporary one is refused as the new one, an own password
+ * opens the app. Returns the own password.
+ */
+async function chooseOwnPassword(page: Page, temp: string): Promise<string> {
+  const submit = async (password: string) => {
+    await page.getByLabel("New password", { exact: true }).fill(password);
+    await page.getByLabel("Confirm new password").fill(password);
+    await page.getByRole("button", { name: "Save new password" }).click();
+  };
+  await expect(page.getByRole("heading", { name: "Set your own password" })).toBeVisible();
+  await submit(temp);
+  await expect(page.getByText("Choose a password that is different from your current one.")).toBeVisible();
+  const own = strongPassword();
+  await submit(own);
+  await expect(page).toHaveURL(/\/jobs$/);
+  return own;
+}
+
 /** A separate signed-out browser (own cookies, own client IP) for the staff member. */
 async function asStaff(browser: Browser, testInfo: TestInfo, baseURL: string | undefined) {
   const context = await freshContext(browser, testInfo, baseURL);
   return { context, page: await context.newPage() };
 }
 
-test("add mechanic: the temporary password is shown once and signs in; reset replaces it", async ({ page, browser, baseURL }, testInfo) => {
+test("add mechanic: the temporary password is shown once, signs in, and must be replaced; reset does it again", async ({ page, browser, baseURL }, testInfo) => {
   const name = `Max Added ${tag()}`;
   const email = `tmp-${tag()}@e2e.garagedesk.test`;
 
@@ -71,9 +91,19 @@ test("add mechanic: the temporary password is shown once and signs in; reset rep
   // The table (desktop) and the card list (small screens) both render; only one is visible.
   await expect(page.getByText(name, { exact: true }).filter({ visible: true })).toBeVisible();
 
+  const flag = async () =>
+    must(await admin().from("profiles").select("must_change_password").eq("id", id!).single(), "flag").must_change_password;
+  expect(await flag()).toBe(true);
   const mechanic = await asStaff(browser, testInfo, baseURL);
   await signIn(mechanic.page, email, first);
-  await expect(mechanic.page).toHaveURL(/\/jobs$/);
+  await expect(mechanic.page).toHaveURL(/\/set-password$/);
+  // Nothing else opens until they choose their own password.
+  await mechanic.page.goto("/customers");
+  await expect(mechanic.page).toHaveURL(/\/set-password$/);
+  const own = await chooseOwnPassword(mechanic.page, first);
+  expect(await flag()).toBe(false);
+  await mechanic.page.goto("/customers");
+  await expect(mechanic.page).toHaveURL(/\/customers$/);
   await mechanic.context.close();
 
   await page.getByRole("button", { name: `Reset password for ${name}` }).click();
@@ -83,9 +113,15 @@ test("add mechanic: the temporary password is shown once and signs in; reset rep
   expect(second).not.toBe(first);
 
   const again = await asStaff(browser, testInfo, baseURL);
-  await expectSignInRefused(again.page, email, first);
+  await expectSignInRefused(again.page, email, own);
   await signIn(again.page, email, second);
-  await expect(again.page).toHaveURL(/\/jobs$/);
+  await expect(again.page).toHaveURL(/\/set-password$/);
+  // Signing out does not skip it: the next sign-in asks again.
+  await again.page.getByRole("button", { name: "Sign out" }).click();
+  await expect(again.page).toHaveURL(/\/login$/);
+  await signIn(again.page, email, second);
+  await expect(again.page).toHaveURL(/\/set-password$/);
+  await chooseOwnPassword(again.page, second);
   await again.context.close();
 });
 

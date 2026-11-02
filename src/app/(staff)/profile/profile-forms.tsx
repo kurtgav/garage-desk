@@ -1,17 +1,27 @@
 "use client";
 
-import { ImageUp } from "lucide-react";
+import { ImageUp, LogOut } from "lucide-react";
 import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/avatar";
 import { submitRequired } from "@/components/form-submit";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Textarea } from "@/components/ui/textarea";
 import type { ActionResult } from "@/lib/data/types";
-import { changePassword, removeAvatar, updateProfile, uploadAvatar } from "./actions";
+import { changePassword, removeAvatar, signOutEverywhere, updateProfile, uploadAvatar } from "./actions";
 import { PASSWORD_HINT, PASSWORD_REQUIRED, PHOTO_TYPES, passwordErrors, photoError } from "./profile-checks";
 
 const ABOUT_MAX = 500;
@@ -188,5 +198,42 @@ export function PasswordForm() {
       </div>
       {state && !pending && (state.ok ? <Alert tone="success">Password changed.</Alert> : <Alert tone="danger">{state.error}</Alert>)}
     </form>
+  );
+}
+
+/** Confirm, then every session of this account ends and this device lands on /login (D-107). */
+export function SignOutEverywhere() {
+  const [state, action, pending] = useActionState<ActionResult | null, FormData>(signOutEverywhere, null);
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="secondary">
+          <LogOut aria-hidden />
+          Sign out everywhere
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <form action={action} className="grid gap-4">
+          <DialogHeader>
+            <DialogTitle>Sign out everywhere?</DialogTitle>
+            <DialogDescription>
+              You are signed out on every phone and computer, this one included. Sign in again with your password.
+            </DialogDescription>
+          </DialogHeader>
+          {state && !state.ok && !pending && <Alert tone="danger">{state.error}</Alert>}
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="ghost">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button type="submit" loading={pending}>
+              Sign out everywhere
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -36,8 +36,8 @@ function TempPasswordNotice({ password }: { password: string }) {
         <CopyButton value={password} label="Copy password" noun="password" />
       </div>
       <Alert tone="warning">
-        This is the only time it is shown. Share it privately, in person or by phone; they should change it on their
-        profile after signing in.
+        This is the only time it is shown. Share it privately, in person or by phone. When they sign in with it, they
+        must choose their own password before they can do anything else.
       </Alert>
     </div>
   );

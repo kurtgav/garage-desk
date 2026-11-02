@@ -2,6 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireStaff } from "@/lib/auth";
 import { GENERIC_ERROR, NAME_TAKEN, PG_UNIQUE_VIOLATION, staffErrorMessage, TOO_MANY_ATTEMPTS } from "@/lib/data/errors";
@@ -111,7 +112,9 @@ const passwordSchema = z
 /** Re-checks the current password, then changes it on the caller's own session (Auth signs out other sessions). */
 export async function changePassword(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
   const staff = await requireStaff();
-  if (await isRateLimited("passwordChange")) return fail(TOO_MANY_ATTEMPTS);
+  // Limiter down (fails closed, D-100): the generic "try again", not "too many attempts".
+  const blocked = await isRateLimited("passwordChange");
+  if (blocked) return fail(blocked === "unavailable" ? GENERIC_ERROR : TOO_MANY_ATTEMPTS);
   const input = parseForm(passwordSchema, formData);
   if ("error" in input) return input;
 
@@ -125,4 +128,16 @@ export async function changePassword(_prev: ActionResult | null, formData: FormD
   const { error } = await db.auth.updateUser({ password: input.data.new_password });
   if (error) return fail(passwordErrorMessage(error.code) ?? GENERIC_ERROR);
   return { ok: true };
+}
+
+/**
+ * Ends every session of this account, this device included (D-107). Other devices hold a JWT that is still
+ * signed, but getUser() asks Auth, which no longer knows the session, so their next page goes to /login.
+ */
+export async function signOutEverywhere(): Promise<ActionResult> {
+  await requireStaff();
+  const db = await createClient();
+  const { error } = await db.auth.signOut({ scope: "global" });
+  if (error) return fail(GENERIC_ERROR);
+  redirect("/login?signed_out=everywhere");
 }

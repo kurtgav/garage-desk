@@ -1,6 +1,6 @@
 // FR9 + FR4 rate rule through the UI: the owner changes the hourly rate; a labour line already on a job keeps
 // its price, a labour line added afterwards uses the new rate. The settings row is global, so the original
-// values are restored at the end.
+// values are restored at the end, and both projects (desktop, 375px) take turns through a file lock (D-108).
 import { expect, test, type Page } from "@playwright/test";
 import { admin, createCustomerWithVehicle, createJob, must, OWNER_STATE, readUsers, tag, withLock } from "./support";
 
@@ -14,10 +14,9 @@ const centsToInput = (cents: number) => {
   return `${s.slice(0, -2)}.${s.slice(-2)}`;
 };
 
-test("FR9: a new hourly rate applies to new labour lines only", async ({ page }, testInfo) => {
-  // shortcut: one global settings row; the two projects running this in parallel would race, so desktop only.
-  test.skip(testInfo.project.name !== "desktop", "settings is a global singleton");
-  // Overlapping runs on this machine take turns, or one would restore the other's changed rate (D-096).
+test("FR9: a new hourly rate applies to new labour lines only", async ({ page }) => {
+  // One global settings row: the other project and overlapping runs on this machine take turns, or one would
+  // read or restore the other's changed rate (D-096, D-108).
   await withLock("settings", () => rateRule(page));
 });
 

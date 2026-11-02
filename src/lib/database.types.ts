@@ -175,14 +175,14 @@ isOneToOne: false
                   ]
                 },"profiles": {
                   Row: {
-                    "about": string | null,"active": boolean,"avatar_path": string | null,"full_name": string,"id": string,"phone": string | null,"role": Database["public"]['Enums']["staff_role"],"updated_at": string
+                    "about": string | null,"active": boolean,"avatar_path": string | null,"full_name": string,"id": string,"must_change_password": boolean,"phone": string | null,"role": Database["public"]['Enums']["staff_role"],"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "about"?: string | null,"active"?: boolean,"avatar_path"?: string | null,"full_name": string,"id": string,"phone"?: string | null,"role": Database["public"]['Enums']["staff_role"],"updated_at"?: string
+                    "about"?: string | null,"active"?: boolean,"avatar_path"?: string | null,"full_name": string,"id": string,"must_change_password"?: boolean,"phone"?: string | null,"role": Database["public"]['Enums']["staff_role"],"updated_at"?: string
                   }
                   Update: {
-                    "about"?: string | null,"active"?: boolean,"avatar_path"?: string | null,"full_name"?: string,"id"?: string,"phone"?: string | null,"role"?: Database["public"]['Enums']["staff_role"],"updated_at"?: string
+                    "about"?: string | null,"active"?: boolean,"avatar_path"?: string | null,"full_name"?: string,"id"?: string,"must_change_password"?: boolean,"phone"?: string | null,"role"?: Database["public"]['Enums']["staff_role"],"updated_at"?: string
                   }
                   Relationships: [
                     

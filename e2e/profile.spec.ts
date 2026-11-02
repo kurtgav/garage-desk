@@ -124,3 +124,36 @@ test("change password: a wrong current password is refused; then the new passwor
   await expect(login).toHaveURL(/\/jobs$/);
   await other.close();
 });
+
+test("sign out everywhere: this device lands on /login with a notice, and another device is signed out too (D-107)", async ({ page, browser, baseURL }, testInfo) => {
+  const me = await signedInThrowaway(page, "Sid Everywhere");
+  const other = await freshContext(browser, testInfo, baseURL);
+  const phone = await other.newPage();
+  await signIn(phone, me.email, me.password);
+  await expect(phone).toHaveURL(/\/jobs$/);
+
+  // Cancel keeps everything as it was.
+  await page.getByRole("button", { name: "Sign out everywhere" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toHaveAccessibleDescription(/every phone and computer, this one included/);
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.reload();
+  await expect(page).toHaveURL(/\/profile$/);
+
+  await page.getByRole("button", { name: "Sign out everywhere" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Sign out everywhere" }).click();
+  await expect(page).toHaveURL(/\/login\?signed_out=everywhere$/);
+  await expect(page.getByRole("status").filter({ hasText: "You are signed out on every device." })).toBeVisible();
+  await page.goto("/profile");
+  await expect(page).toHaveURL(/\/login$/);
+
+  // The other device's next page: its session no longer exists in Auth.
+  await phone.goto("/customers");
+  await expect(phone).toHaveURL(/\/login$/);
+  await other.close();
+
+  // The password itself still works.
+  await signIn(page, me.email, me.password);
+  await expect(page).toHaveURL(/\/jobs$/);
+});

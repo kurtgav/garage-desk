@@ -12,12 +12,14 @@ import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { signIn, type LoginState } from "./actions";
 
-export function LoginForm() {
+/** `notice`: where the visitor came from, e.g. "Sign out everywhere" (D-107); a failed sign-in replaces it. */
+export function LoginForm({ notice }: { notice?: string }) {
   const [state, formAction, pending] = useActionState<LoginState, FormData>(signIn, null);
+  const alert = state ? <Alert tone="danger">{state.error}</Alert> : notice && <Alert tone="success">{notice}</Alert>;
 
   return (
     <form action={formAction}>
-      <AuthNotice result={state}>{state && <Alert tone="danger">{state.error}</Alert>}</AuthNotice>
+      <AuthNotice result={state}>{alert}</AuthNotice>
       <div className="grid gap-5">
         <Field id="email" label="Email">
           <Input name="email" type="email" autoComplete="email" required defaultValue={state?.email} className={lpControl} />

@@ -12,11 +12,15 @@ import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import type { ActionResult } from "@/lib/data/types";
 import { cn } from "@/lib/utils";
-import { setNewPassword } from "./actions";
 import { meetsPasswordRule, PASSWORD_MAX, PASSWORD_RULES } from "./password-rules";
 
-export function ResetPasswordForm() {
-  const [state, dispatch, pending] = useActionState<ActionResult | null, FormData>(setNewPassword, null);
+type Props = {
+  /** setNewPassword (recovery link) or setOwnPassword (after a temporary password, D-106); both redirect on success. */
+  action: (prev: ActionResult | null, formData: FormData) => Promise<ActionResult>;
+};
+
+export function ResetPasswordForm({ action }: Props) {
+  const [state, dispatch, pending] = useActionState<ActionResult | null, FormData>(action, null);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   // After a blocked submit, the rules not met yet turn red.

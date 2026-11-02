@@ -4,7 +4,7 @@ import { getPublicJob } from "@/lib/public-job";
 import { isRateLimited } from "@/lib/rate-limit";
 import { AUTH_COOKIE_OPTIONS } from "@/lib/supabase/cookie-options";
 
-const STAFF_PREFIXES = ["/jobs", "/customers", "/dashboard", "/settings", "/profile", "/staff"];
+const STAFF_PREFIXES = ["/jobs", "/customers", "/dashboard", "/settings", "/profile", "/staff", "/set-password"];
 // Public app routes (PLAN Phase 5): no sign-in needed and never looked up as a customer token.
 const PUBLIC_PATHS = ["/", "/login", "/forgot-password", "/reset-password", "/auth/confirm", "/robots.txt"];
 // generateLinkToken(): 32 random bytes, base64url → exactly 43 chars. Anything else can never be a link (D-093).
@@ -65,6 +65,7 @@ export async function proxy(request: NextRequest) {
   // cannot be a token gets the same 404 before any DB write or lookup (bot noise like /wp-login.php).
   if (!isStaffPath && !PUBLIC_PATHS.includes(pathname) && !request.headers.has("next-action")) {
     const token = LINK_PATH.exec(pathname)?.[1];
+    // Limited or limiter unavailable (fails closed, D-100): the same 404 as a failed lookup.
     if (!token || (await isRateLimited("publicView")) || !(await getPublicJob(token))) {
       return forward(new URL(UNMATCHED_PATH, request.url));
     }

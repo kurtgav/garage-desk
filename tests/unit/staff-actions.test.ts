@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => {
     rpcError: null as unknown,
     updateUserErrors: [] as unknown[], // one per call, in order; then no error
     profileRow: { role: "mechanic", active: true } as { role: string; active: boolean } | null,
+    flagError: null as unknown,
   };
   return {
     state,
@@ -19,6 +20,7 @@ const mocks = vi.hoisted(() => {
     deleteUser: vi.fn(),
     updateUserById: vi.fn(),
     insert: vi.fn(),
+    flag: vi.fn(),
     rpc: vi.fn(),
   };
 });
@@ -34,7 +36,12 @@ vi.mock("@/lib/supabase/admin", () => ({
         updateUserById: async (id: string, attrs: unknown) => (mocks.updateUserById(id, attrs), { error: mocks.state.updateUserErrors.shift() ?? null }),
       },
     },
-    from: () => ({ insert: async (row: unknown) => (mocks.insert(row), { error: mocks.state.insertError }) }),
+    from: () => ({
+      insert: async (row: unknown) => (mocks.insert(row), { error: mocks.state.insertError }),
+      update: (patch: unknown) => ({
+        eq: async (_col: string, id: string) => (mocks.flag(id, patch), { error: mocks.state.flagError }),
+      }),
+    }),
   }),
 }));
 vi.mock("@/lib/supabase/server", () => ({
@@ -65,6 +72,7 @@ beforeEach(() => {
     rpcError: null,
     updateUserErrors: [],
     profileRow: { role: "mechanic", active: true },
+    flagError: null,
   });
 });
 
@@ -89,7 +97,14 @@ describe("createStaff", () => {
     const tempPassword = res.ok ? res.tempPassword : "";
     expect(newPasswordSchema.safeParse(tempPassword).success).toBe(true);
     expect(mocks.createUser).toHaveBeenCalledWith({ email: "petar@garagedesk.test", password: tempPassword, email_confirm: true });
-    expect(mocks.insert).toHaveBeenCalledWith({ id: "new-user", full_name: "Petar Ivanov", role: "mechanic", active: true });
+    // They must set their own password at first sign-in (D-106).
+    expect(mocks.insert).toHaveBeenCalledWith({
+      id: "new-user",
+      full_name: "Petar Ivanov",
+      role: "mechanic",
+      active: true,
+      must_change_password: true,
+    });
   });
 
   it.each([
@@ -190,6 +205,18 @@ describe("resetStaffPassword", () => {
     expect(mocks.updateUserById).toHaveBeenCalledWith(MECH, { password: tempPassword });
   });
 
+  it("flags the forced password change before replacing the password (D-106)", async () => {
+    expect((await resetStaffPassword(null, form({ id: MECH }))).ok).toBe(true);
+    expect(mocks.flag).toHaveBeenCalledWith(MECH, { must_change_password: true });
+    expect(mocks.flag.mock.invocationCallOrder[0]).toBeLessThan(mocks.updateUserById.mock.invocationCallOrder[0]);
+  });
+
+  it("the flag can't be set → error, the password is left alone", async () => {
+    mocks.state.flagError = { message: "boom" };
+    expect(await resetStaffPassword(null, form({ id: MECH }))).toEqual({ ok: false, error: "Something went wrong. Please try again." });
+    expect(mocks.updateUserById).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["another owner", "00000000-0000-4000-8000-000000000003"],
     ["themselves", OWNER.id],
@@ -206,6 +233,7 @@ describe("resetStaffPassword", () => {
     mocks.state.profileRow = { role: "mechanic", active: false };
     expect(await resetStaffPassword(null, form({ id: MECH }))).toEqual({ ok: false, error: "Reactivate them first." });
     expect(mocks.updateUserById).not.toHaveBeenCalled();
+    expect(mocks.flag).not.toHaveBeenCalled();
   });
 
   it("not a staff profile → not found, no Auth call", async () => {

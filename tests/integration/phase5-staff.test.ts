@@ -63,6 +63,18 @@ describe("own profile", () => {
     });
   });
 
+  it("must_change_password: no client reads or clears it, not even their own; only the service role (D-106)", async () => {
+    expect((await admin.from("profiles").update({ must_change_password: true }).eq("id", mechA.id)).error).toBeNull();
+    for (const db of [aDb, ownerDb]) {
+      expect((await db.from("profiles").select("must_change_password").eq("id", mechA.id)).error?.code).toBe("42501");
+      expect((await db.from("profiles").update({ must_change_password: false }).eq("id", mechA.id)).error?.code).toBe("42501");
+    }
+    expect((await admin.from("profiles").select("must_change_password").eq("id", mechA.id).single()).data).toEqual({
+      must_change_password: true,
+    });
+    expect((await admin.from("profiles").update({ must_change_password: false }).eq("id", mechA.id)).error).toBeNull();
+  });
+
   it.each([
     [{ phone: "1".repeat(31) }],
     [{ about: "x".repeat(501) }],

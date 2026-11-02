@@ -10,17 +10,19 @@ const mocks = vi.hoisted(() => {
     uploadError: null as unknown,
     updateUserError: null as unknown,
     verify: { data: { user: { id: "" } }, error: null } as { data: { user: { id: string } | null }; error: unknown },
+    signOutError: null as unknown,
   };
   return {
     state,
     requireStaff: vi.fn(),
-    isRateLimited: vi.fn(async () => false),
+    isRateLimited: vi.fn(async (): Promise<false | "limited" | "unavailable"> => false),
     update: vi.fn(),
     upload: vi.fn(),
     remove: vi.fn(),
     updateUser: vi.fn(),
     signIn: vi.fn(),
     verifierSignOut: vi.fn(),
+    signOut: vi.fn(),
   };
 });
 
@@ -28,6 +30,11 @@ vi.mock("@/lib/auth", () => ({ requireStaff: mocks.requireStaff }));
 vi.mock("@/lib/rate-limit", () => ({ isRateLimited: mocks.isRateLimited }));
 vi.mock("@/lib/data/profile", () => ({ AVATAR_BUCKET: "avatars" }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  redirect: (url: string) => {
+    throw new Error(`NEXT_REDIRECT;${url}`);
+  },
+}));
 vi.mock("@/lib/supabase/server", () => ({
   createStatelessClient: () => ({
     auth: {
@@ -53,11 +60,14 @@ vi.mock("@/lib/supabase/server", () => ({
         remove: async (paths: string[]) => (mocks.remove(paths), { data: [], error: null }),
       }),
     },
-    auth: { updateUser: async (attrs: unknown) => (mocks.updateUser(attrs), { error: mocks.state.updateUserError }) },
+    auth: {
+      updateUser: async (attrs: unknown) => (mocks.updateUser(attrs), { error: mocks.state.updateUserError }),
+      signOut: async (opts: unknown) => (mocks.signOut(opts), { error: mocks.state.signOutError }),
+    },
   }),
 }));
 
-const { updateProfile, uploadAvatar, removeAvatar, changePassword } = await import("@/app/(staff)/profile/actions");
+const { updateProfile, uploadAvatar, removeAvatar, changePassword, signOutEverywhere } = await import("@/app/(staff)/profile/actions");
 
 function form(fields: Record<string, string | File>): FormData {
   const f = new FormData();
@@ -83,6 +93,7 @@ beforeEach(() => {
     uploadError: null,
     updateUserError: null,
     verify: { data: { user: { id: ME.id } }, error: null },
+    signOutError: null,
   });
 });
 
@@ -201,11 +212,34 @@ describe("changePassword", () => {
     expect(await changePassword(null, form(VALID))).toEqual({ ok: false, error: "Please sign in again to change your password." });
   });
 
-  it("rate limited → refused before the password check", async () => {
-    mocks.isRateLimited.mockResolvedValueOnce(true);
-    const res = await changePassword(null, form(VALID));
-    expect(res.ok).toBe(false);
+  it.each([
+    ["limited", "Too many attempts. Please wait a minute and try again."],
+    // The limiter's DB call failed (fails closed, D-100): blocked, but not blamed on the user.
+    ["unavailable", "Something went wrong. Please try again."],
+  ] as const)("rate limiter says %s → refused before the password check", async (blocked, error) => {
+    mocks.isRateLimited.mockResolvedValueOnce(blocked);
+    expect(await changePassword(null, form(VALID))).toEqual({ ok: false, error });
     expect(mocks.isRateLimited).toHaveBeenCalledWith("passwordChange");
     expect(mocks.signIn).not.toHaveBeenCalled();
+    expect(mocks.updateUser).not.toHaveBeenCalled();
+  });
+});
+
+describe("signOutEverywhere", () => {
+  it("ends every session (global scope), then goes to /login with the notice (D-107)", async () => {
+    await expect(signOutEverywhere()).rejects.toThrow("NEXT_REDIRECT;/login?signed_out=everywhere");
+    expect(mocks.requireStaff).toHaveBeenCalled();
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: "global" });
+  });
+
+  it("Auth refuses → error shown, no redirect (this device stays signed in)", async () => {
+    mocks.state.signOutError = { status: 500, message: "boom" };
+    expect(await signOutEverywhere()).toEqual({ ok: false, error: "Something went wrong. Please try again." });
+  });
+
+  it("signed out (requireStaff redirects) → Auth is never called", async () => {
+    mocks.requireStaff.mockRejectedValueOnce(new Error("NEXT_REDIRECT;/login"));
+    await expect(signOutEverywhere()).rejects.toThrow("NEXT_REDIRECT;/login");
+    expect(mocks.signOut).not.toHaveBeenCalled();
   });
 });

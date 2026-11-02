@@ -34,7 +34,10 @@ const newStaffSchema = z.object({
   ),
 });
 
-/** New mechanic account with a one-time temporary password (shown once, never stored or logged). */
+/**
+ * New mechanic account with a one-time temporary password (shown once, never stored or logged). They must set
+ * their own at first sign-in (must_change_password, D-106).
+ */
 export async function createStaff(
   _prev: ActionResult<TempPassword> | null,
   formData: FormData,
@@ -50,7 +53,9 @@ export async function createStaff(
     return fail(created.error?.code === "email_exists" ? "That email already has an account." : GENERIC_ERROR);
   }
   const id = created.data.user.id;
-  const profile = await admin.from("profiles").insert({ id, full_name: input.data.full_name, role: "mechanic", active: true });
+  const profile = await admin
+    .from("profiles")
+    .insert({ id, full_name: input.data.full_name, role: "mechanic", active: true, must_change_password: true });
   if (profile.error) {
     await admin.auth.admin.deleteUser(id); // no half-made accounts
     return fail(profile.error.code === PG_UNIQUE_VIOLATION ? NAME_TAKEN : GENERIC_ERROR);
@@ -90,7 +95,10 @@ export async function setStaffActive(_prev: ActionResult | null, formData: FormD
   );
 }
 
-/** A new one-time temporary password for a mechanic. Owners (incl. self) use /profile or forgot password. */
+/**
+ * A new one-time temporary password for a mechanic, who must then set their own (D-106). Owners (incl. self) use
+ * /profile or forgot password.
+ */
 export async function resetStaffPassword(
   _prev: ActionResult<TempPassword> | null,
   formData: FormData,
@@ -107,8 +115,13 @@ export async function resetStaffPassword(
   if (profile.role === "owner") return fail(OWNER_PASSWORD);
   if (!profile.active) return fail("Reactivate them first.");
 
+  // Flag first: if the password change then fails, they are only asked to choose a new one, never left on a
+  // password the owner knows.
+  const admin = createAdminClient();
+  const flagged = await admin.from("profiles").update({ must_change_password: true }).eq("id", id);
+  if (flagged.error) return fail(GENERIC_ERROR);
   const tempPassword = generateTempPassword();
-  const { error } = await createAdminClient().auth.admin.updateUserById(id, { password: tempPassword });
+  const { error } = await admin.auth.admin.updateUserById(id, { password: tempPassword });
   if (error) return fail(GENERIC_ERROR);
   return { ok: true, tempPassword };
 }
