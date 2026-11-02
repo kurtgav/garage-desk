@@ -19,8 +19,11 @@ async function clientIp(): Promise<string> {
   return h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
 }
 
-/** True when this client is over the limit for the bucket (D-012). Fails open on DB error. */
-export async function isRateLimited(bucket: keyof typeof LIMITS): Promise<boolean> {
+/**
+ * Why this request must stop, or false to go ahead (D-012). Fails closed (D-100): when the limiter's DB call
+ * fails the answer is "unavailable", so callers show the generic "try again" rather than "too many attempts".
+ */
+export async function isRateLimited(bucket: keyof typeof LIMITS): Promise<false | "limited" | "unavailable"> {
   const { max, windowSeconds } = LIMITS[bucket];
   const key = createHash("sha256").update(`${bucket}:${await clientIp()}`).digest("hex");
   const { data, error } = await createAdminClient().rpc("rate_limit_hit", {
@@ -28,5 +31,6 @@ export async function isRateLimited(bucket: keyof typeof LIMITS): Promise<boolea
     p_max: max,
     p_window_seconds: windowSeconds,
   });
-  return !error && data === true;
+  if (error) return "unavailable";
+  return data === true ? "limited" : false;
 }

@@ -40,7 +40,8 @@ async function customerTransition(
   if (await getStaff()) return { ok: false, error: STAFF_ON_CUSTOMER_LINK };
   const version = versionSchema.safeParse(formData.get("expected_version"));
   if (!version.success) return { ok: false, error: QUOTE_CHANGED };
-  if (await isRateLimited("publicAction")) return { ok: false, error: TOO_MANY_ATTEMPTS };
+  const blocked = await isRateLimited("publicAction");
+  if (blocked) return { ok: false, error: blocked === "unavailable" ? GENERIC_ERROR : TOO_MANY_ATTEMPTS };
   const token = formData.get("token");
   if (typeof token !== "string" || !TOKEN_RE.test(token)) return { ok: false, error: INVALID_LINK };
 

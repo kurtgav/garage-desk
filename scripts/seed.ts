@@ -196,13 +196,14 @@ const ready = (gap = 6): Step => ({ to: "ready", gap });
 const collect = (gap = 20): Step => ({ to: "collected", gap });
 const HAPPY = [quote(), approve(), start(), ready()];
 
-// Collected-this-month times spread over this month's working time so far. shortcut: when the month has had
-// no working time yet (the 1st before 08:00, or a weekend start) they fall back to plain time, outside hours.
+// Collected-this-month times spread over this month's working time so far. Before the month's first working
+// hours (the 1st before 08:00, or a weekend start) nothing can have been collected this month yet, so they go
+// to the previous month's last working day instead and this month's revenue starts at €0 (D-102).
 const monthWorkingMs = workingMs(monthStart, now);
 const inThisMonth = (i: number, of: number) =>
   monthWorkingMs > 0
     ? workBack(now, (monthWorkingMs * (of - i)) / (of + 1))
-    : monthStart + ((now - monthStart) * (i + 1)) / (of + 1);
+    : workBack(monthStart, (of - i) * 2 * HOUR);
 
 const JOBS: JobSpec[] = [
   // Collected last month at the OLD rate (€40.00/h): outside this month's revenue.
@@ -324,9 +325,8 @@ interface Figures {
  * service role edit lines and no re-quote trigger fires), then sets the final state once.
  */
 async function createJob(spec: JobSpec, vehicleId: string, ownerId: string, mechanicId: string, links: string[]) {
-  // Step times counted back from the last one in working hours; this month's revenue never moves to last month.
-  const keepsRevenue = spec.steps.at(-1)?.to === "collected" && spec.lastAt >= monthStart;
-  const last = keepsRevenue && workingBefore(spec.lastAt) < monthStart ? spec.lastAt : workingBefore(spec.lastAt);
+  // Step times counted back from the last one in working hours (nights and weekends skipped).
+  const last = workingBefore(spec.lastAt);
   const stepAt: number[] = [];
   let back = last;
   for (let i = spec.steps.length - 1; i >= 0; i--) {

@@ -181,7 +181,7 @@ export type TempPassword = { tempPassword: string };
 /*
  * Data functions ("server-only", RLS client):
  *   src/lib/data/jobs.ts
- *     listJobs(opts?: { status?: JobStatus }): Promise<JobListItem[]>   // newest first; mechanics see their own
+ *     listJobs(opts?: { status?: JobStatus | JobStatus[]; … }): Promise<JobListItem[]> // newest first; mechanics see their own
  *     getJob(id: string): Promise<JobDetail | null>                      // null → page calls notFound()
  *     listMechanicOptions(): Promise<PickerOption[]>                     // active mechanics, owner only
  *     listVehicleOptions(): Promise<PickerOption[]>                      // all staff: "CA 1234 AB · Toyota Corolla — Ivan Georgiev"

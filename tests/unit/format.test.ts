@@ -25,6 +25,12 @@ describe("plates", () => {
     ["ca 4521 km", "CA4521KM"],
     ["CA-4521-KM", "CA4521KM"],
     [" ca4521km ", "CA4521KM"],
+    ["СА 4521 КМ", "CA4521KM"], // Cyrillic, Bulgarian keyboard (D-099)
+    ["са 4521-км", "CA4521KM"],
+    ["Св 1234 Ах", "CB1234AX"], // mixed scripts and cases
+    ["АВЕКМНОРСТУХ", "ABEKMHOPCTYX"],
+    ["авекмнорстух", "ABEKMHOPCTYX"],
+    ["Д 1234 Ж", "Д1234Ж"], // not look-alikes: left for validation to refuse
   ])("normalisePlate(%j) → %j", (input, normalised) => {
     expect(normalisePlate(input)).toBe(normalised);
   });

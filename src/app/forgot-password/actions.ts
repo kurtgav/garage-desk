@@ -2,6 +2,7 @@
 
 import { after } from "next/server";
 import { z } from "zod";
+import { GENERIC_ERROR } from "@/lib/data/errors";
 import type { ActionResult } from "@/lib/data/types";
 import { fail } from "@/lib/form";
 import { passwordResetEmailEnabled, RESET_EMAIL_OFF } from "@/lib/password";
@@ -19,7 +20,9 @@ const emailSchema = z.preprocess(
  */
 export async function requestPasswordReset(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
   if (!passwordResetEmailEnabled()) return fail(RESET_EMAIL_OFF); // same for every address, nothing sent
-  if (await isRateLimited("passwordReset")) return fail("Too many requests. Please wait a few minutes and try again.");
+  const blocked = await isRateLimited("passwordReset");
+  if (blocked === "unavailable") return fail(GENERIC_ERROR);
+  if (blocked) return fail("Too many requests. Please wait a few minutes and try again.");
   const email = emailSchema.safeParse(formData.get("email"));
   if (!email.success) return fail("Enter a valid email address.");
 

@@ -6,12 +6,19 @@ import { createClient } from "@/lib/supabase/server";
 import { signAvatarUrls } from "./profile";
 import type { StaffMember } from "./types";
 
-/** Sign-in emails live in Auth, not in profiles: owner-only admin read. */
+const USERS_PER_PAGE = 1000;
+
+/** Sign-in emails live in Auth, not in profiles: owner-only admin read, every page of Auth users. */
 async function staffEmails(): Promise<Map<string, string>> {
-  // shortcut: one page of 1000 Auth users; page through listUsers if a garage ever has more.
-  const { data, error } = await createAdminClient().auth.admin.listUsers({ perPage: 1000 });
-  if (error) throw new Error("Could not load staff emails");
-  return new Map(data.users.map((u) => [u.id, u.email ?? ""]));
+  const admin = createAdminClient();
+  const emails = new Map<string, string>();
+  // A short page is the last one (auth-js's nextPage parses only one digit of the page number).
+  for (let page = 1; ; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: USERS_PER_PAGE });
+    if (error) throw new Error("Could not load staff emails");
+    for (const u of data.users) emails.set(u.id, u.email ?? "");
+    if (data.users.length < USERS_PER_PAGE) return emails;
+  }
 }
 
 /** Every staff account for /staff, active first, then by name. Owner only (mechanics get the 404). */

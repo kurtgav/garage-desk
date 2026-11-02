@@ -36,10 +36,16 @@ export function formatPlate(plate: string): string {
   return m ? `${m[1]} ${m[2]}` : plate;
 }
 
-/** Same normalisation as the DB trigger, for search input. */
-// shortcut: Cyrillic look-alike letters (С, А, В…) are not mapped to Latin; add the mapping here and in the DB trigger if staff type plates on a Bulgarian keyboard.
+// The 12 Cyrillic letters Bulgarian plates share with Latin, as typed on a Bulgarian keyboard (D-099).
+const CYRILLIC = "АВЕКМНОРСТУХ";
+const LATIN = "ABEKMHOPCTYX";
+
+/** Same normalisation as the DB (private.normalise_plate: trigger and search): "са 1234-км" → "CA1234KM". */
 export function normalisePlate(input: string): string {
-  return input.toUpperCase().replace(/[\s-]/g, "");
+  return input
+    .toUpperCase()
+    .replace(/[\s-]/g, "")
+    .replace(/[АВЕКМНОРСТУХ]/g, (c) => LATIN[CYRILLIC.indexOf(c)]);
 }
 
 /** Digits only; a Bulgarian national number "0881234567" becomes "359881234567" (D-055). */

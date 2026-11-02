@@ -49,9 +49,12 @@ export default async function JobsPage({
   // Same Europe/Sofia month as the dashboard's revenue figure (D-090).
   const month = thisMonth ? garageMonthBounds() : undefined;
 
-  // shortcut: "Open" filters the full list in memory; add a status-set filter to listJobs if the list grows past a few hundred jobs.
-  const all = await listJobs({ status, mechanicId, collectedFrom: month?.start, collectedTo: month?.end });
-  const jobs = status ? all : all.filter((j) => OPEN_STATUSES.includes(j.status));
+  const jobs = await listJobs({
+    status: status ?? OPEN_STATUSES, // no status = the "Open" tab
+    mechanicId,
+    collectedFrom: month?.start,
+    collectedTo: month?.end,
+  });
 
   const scope = mechanicName ?? (isOwner ? "All mechanics" : "Assigned to you");
   const noun = jobs.length === 1 ? "job" : "jobs";

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Phase 5 public auth flow: forgot password → /auth/confirm → reset password, and sign-in → role home.
 const mocks = vi.hoisted(() => ({
-  isRateLimited: vi.fn(async () => false),
+  isRateLimited: vi.fn(async (): Promise<false | "limited" | "unavailable"> => false),
   hasRecoverySession: vi.fn(async () => true),
   getStaff: vi.fn(),
   resetPasswordForEmail: vi.fn(async () => ({ data: {}, error: null }) as { data: unknown; error: unknown }),
@@ -96,9 +96,12 @@ describe("requestPasswordReset (no account enumeration)", () => {
     expect(mocks.after).not.toHaveBeenCalled();
   });
 
-  it("rate limited (per client) → refused, no email sent", async () => {
-    mocks.isRateLimited.mockResolvedValueOnce(true);
-    expect((await requestPasswordReset(null, form({ email: "jun@garagedesk.test" }))).ok).toBe(false);
+  it.each([
+    ["limited", "Too many requests. Please wait a few minutes and try again."],
+    ["unavailable", "Something went wrong. Please try again."], // limiter DB error: fails closed (D-100)
+  ] as const)("rate limit %s (per client) → refused with the right sentence, no email sent", async (blocked, error) => {
+    mocks.isRateLimited.mockResolvedValueOnce(blocked);
+    expect(await requestPasswordReset(null, form({ email: "jun@garagedesk.test" }))).toEqual({ ok: false, error });
     expect(mocks.isRateLimited).toHaveBeenCalledWith("passwordReset");
     expect(mocks.after).not.toHaveBeenCalled();
   });
@@ -179,6 +182,15 @@ describe("signIn → role home", () => {
     mocks.signInWithPassword.mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
     mocks.profile.mockReturnValue({ active: true, role });
     expect(await redirectOf(() => signIn(null, form({ email: "a@b.bg", password: "x" })))).toBe(home);
+  });
+
+  it.each([
+    ["limited", "Too many sign-in attempts. Please wait a few minutes and try again."],
+    ["unavailable", "Something went wrong. Please try again."], // limiter DB error: fails closed (D-100)
+  ] as const)("rate limit %s → refused before Auth, email kept", async (blocked, error) => {
+    mocks.isRateLimited.mockResolvedValueOnce(blocked);
+    expect(await signIn(null, form({ email: "a@b.bg", password: "x" }))).toEqual({ ok: false, error, email: "a@b.bg" });
+    expect(mocks.signInWithPassword).not.toHaveBeenCalled();
   });
 
   it("inactive → signed out, generic error", async () => {

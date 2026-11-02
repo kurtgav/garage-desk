@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { roleHome } from "@/lib/auth";
+import { GENERIC_ERROR as TRY_AGAIN } from "@/lib/data/errors";
 import { isRateLimited } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
@@ -22,8 +23,11 @@ export async function signIn(_prev: LoginState, formData: FormData): Promise<Log
   const failure: LoginState = { ok: false, error: GENERIC_ERROR, email: email.slice(0, 254) };
 
   // Supabase Auth only sees the server IP, so throttle per client IP here.
-  if (await isRateLimited("login")) {
-    return { ok: false, error: "Too many sign-in attempts. Please wait a few minutes and try again.", email: failure.email };
+  const blocked = await isRateLimited("login");
+  if (blocked) {
+    const error =
+      blocked === "unavailable" ? TRY_AGAIN : "Too many sign-in attempts. Please wait a few minutes and try again.";
+    return { ok: false, error, email: failure.email };
   }
 
   const parsed = credentials.safeParse({ email, password });

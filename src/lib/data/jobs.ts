@@ -23,11 +23,12 @@ async function liveTotals(db: Db): Promise<Map<string, number>> {
 }
 
 /**
- * Newest first. Mechanics only get their own jobs (RLS). `vehicleIds` narrows to those vehicles' jobs,
- * `mechanicId` to one assignee, `collectedFrom`/`collectedTo` to collected_at in [from, to).
+ * Newest first. Mechanics only get their own jobs (RLS). `status` narrows to one status or a set (e.g. the
+ * open ones), `vehicleIds` to those vehicles' jobs, `mechanicId` to one assignee, `collectedFrom`/`collectedTo`
+ * to collected_at in [from, to). All filters run in the database.
  */
 export async function listJobs(opts?: {
-  status?: JobStatus;
+  status?: JobStatus | readonly JobStatus[];
   vehicleIds?: string[];
   mechanicId?: string;
   collectedFrom?: Date;
@@ -35,7 +36,7 @@ export async function listJobs(opts?: {
 }): Promise<JobListItem[]> {
   const db = await createClient();
   let query = db.from("jobs").select(LIST_COLUMNS);
-  if (opts?.status) query = query.eq("status", opts.status);
+  if (opts?.status) query = query.in("status", typeof opts.status === "string" ? [opts.status] : [...opts.status]);
   if (opts?.vehicleIds) query = query.in("vehicle_id", opts.vehicleIds);
   if (opts?.mechanicId) query = query.eq("assigned_mechanic_id", opts.mechanicId);
   if (opts?.collectedFrom) query = query.gte("collected_at", opts.collectedFrom.toISOString());

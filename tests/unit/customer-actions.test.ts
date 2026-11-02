@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getStaff: vi.fn(),
   createAdminClient: vi.fn(),
-  isRateLimited: vi.fn(async () => false),
+  isRateLimited: vi.fn(async (): Promise<false | "limited" | "unavailable"> => false),
 }));
 vi.mock("@/lib/auth", () => ({ getStaff: mocks.getStaff }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.createAdminClient }));
@@ -12,7 +12,7 @@ vi.mock("@/lib/rate-limit", () => ({ isRateLimited: mocks.isRateLimited }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 const { approveQuote, declineQuote } = await import("@/app/[token]/actions");
-const { STAFF_ON_CUSTOMER_LINK } = await import("@/lib/data/errors");
+const { GENERIC_ERROR, STAFF_ON_CUSTOMER_LINK, TOO_MANY_ATTEMPTS } = await import("@/lib/data/errors");
 
 function form(): FormData {
   const f = new FormData();
@@ -42,5 +42,17 @@ describe("customer link actions refuse signed-in staff (D-067)", () => {
     const result = await approveQuote(null, form());
     expect(mocks.createAdminClient).toHaveBeenCalled();
     expect(result).toEqual({ ok: false, error: "This link is no longer valid." });
+  });
+});
+
+describe("customer link actions: rate limit (D-100)", () => {
+  it.each([
+    ["limited", TOO_MANY_ATTEMPTS],
+    ["unavailable", GENERIC_ERROR], // the limiter's DB call failed: "too many attempts" would be wrong
+  ] as const)("%s → %s, no link lookup", async (blocked, error) => {
+    mocks.getStaff.mockResolvedValue(null);
+    mocks.isRateLimited.mockResolvedValueOnce(blocked);
+    expect(await approveQuote(null, form())).toEqual({ ok: false, error });
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
   });
 });
