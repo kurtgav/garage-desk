@@ -9,7 +9,7 @@ Stack: Next.js 16 (App Router) and TypeScript, Supabase (Postgres and Auth), Tai
 | Doc | What is in it |
 |---|---|
 | [docs/PRD.md](docs/PRD.md) | The spec, including the client's answers (§12) |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Every non-obvious choice and why (D-001 to D-073) |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Every non-obvious choice and why (D-001 to D-075) |
 | [docs/NEXT-STEPS.md](docs/NEXT-STEPS.md) | What to do before and after real use |
 | [docs/PLAN.md](docs/PLAN.md), [docs/DESIGN.md](docs/DESIGN.md) | Build plan and design system |
 
@@ -184,6 +184,6 @@ The demo garage is "Petrov Auto Service": €45.00/h, 20% VAT, 10 customers, 15 
 - **Secrets stay out of the repo.** Only `.env.example` is committed. In the app, the service-role key is read in one module, `src/lib/supabase/admin.ts`, which starts with `import 'server-only'`. Never put it in a `NEXT_PUBLIC_*` variable.
 - **Secret scan on every commit and push.** `pnpm install` points git at `.githooks`. The pre-commit hook scans staged files, the pre-push hook scans all tracked files, and CI scans again. It blocks env files, `.vercel/`, `CREDENTIALS.local.md`, key patterns and any exact value from your local env files. After each CI build, `pnpm bundle:scan` checks the client bundle. (D-046)
 - **Schema changes only through migrations.** Add a new file to `supabase/migrations/` and apply it with `supabase db push`. Never edit a migration that has been applied. D-065 explains how migrations reach the remote project today.
-- **Production deploys.** Run `vercel deploy --prod` from a clean `git worktree` of the pushed commit, so only committed files are uploaded. Git deployments are off on the Vercel project. (D-073)
+- **Production deploys.** Export the pushed commit with `git archive HEAD` into an empty folder (plus `.vercel/project.json`) and run `vercel deploy --prod` there as `kurtgav`, so only committed files are uploaded and the deploy is not blocked by the commit-author check on the Hobby plan (D-073, D-075). Git deployments are off on the Vercel project.
 - **Env vars live in Vercel.** `NEXT_PUBLIC_SITE_URL` must be the live URL, because customer links are built from it. Preview deployments fall back to the request's origin. `pnpm credentials:generate --push-vercel` also stores the seed passwords in the Vercel production env.
 - **CI.** GitHub Actions runs on every push to `main` and every pull request: secret scan, lint, typecheck and unit tests, then integration tests, build, bundle scan and e2e against a throwaway local Supabase stack, never production. (D-006)

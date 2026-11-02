@@ -14,7 +14,7 @@ What to do if Garage Desk goes into real daily use, most urgent first. Each item
    Why: today both run in Tokyo, so every request from Sofia makes a long round trip and customer names and phone numbers are stored outside the EU (D-066). Move both together: if only one side moves, every query crosses continents. Steps: new database in `eu-central-1`, apply `supabase/migrations/`, move the data, apply the Auth settings listed in D-065 (sign-up off, password policy, site URL), update the Vercel env vars, then set `regions` in `vercel.json` to `fra1`.
 
 4. **Turn on automatic deploys: Vercel Git deployments, or a deploy job in CI.**
-   Why: production is deployed by hand with `vercel deploy --prod` because Git deployments are disabled on the Vercel project (D-073), and migrations are pushed by hand because the CLI account has no Management API rights on the project (D-065). A merge to `main` should reach production without a laptop.
+   Why: production is deployed by hand with `vercel deploy --prod` because Git deployments are disabled on the Vercel project (D-073), and migrations are pushed by hand because the CLI account has no Management API rights on the project (D-065). A merge to `main` should reach production without a laptop. First link the commit author email to the `kurtgav` Vercel account (or commit as that account): on the Hobby plan Vercel blocks deployments from commits by anyone else (D-075).
 
 ## Soon (first weeks of use)
 
