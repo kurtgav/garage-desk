@@ -1,3 +1,5 @@
+> **Superseded.** This was the first-pass review before the client answered. The answers in `PRD.md` §12 and decisions D-047…D-073 replace the assumptions below (timezone, currency, phone format, link expiry and more).
+
 # PRD review — contradictions and gaps
 
 Each item: what the PRD says → the gap → the assumption I built on (safest reasonable reading). Decisions referenced are in `DECISIONS.md`.
