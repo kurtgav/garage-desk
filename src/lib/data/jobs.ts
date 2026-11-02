@@ -22,12 +22,24 @@ async function liveTotals(db: Db): Promise<Map<string, number>> {
   return new Map(data.flatMap((t) => (t.job_id ? [[t.job_id, t.total_cents ?? 0] as const] : [])));
 }
 
-/** Newest first. Mechanics only get their own jobs (RLS). `vehicleId` narrows to one vehicle's jobs. */
-export async function listJobs(opts?: { status?: JobStatus; vehicleIds?: string[] }): Promise<JobListItem[]> {
+/**
+ * Newest first. Mechanics only get their own jobs (RLS). `vehicleIds` narrows to those vehicles' jobs,
+ * `mechanicId` to one assignee, `collectedFrom`/`collectedTo` to collected_at in [from, to).
+ */
+export async function listJobs(opts?: {
+  status?: JobStatus;
+  vehicleIds?: string[];
+  mechanicId?: string;
+  collectedFrom?: Date;
+  collectedTo?: Date;
+}): Promise<JobListItem[]> {
   const db = await createClient();
   let query = db.from("jobs").select(LIST_COLUMNS);
   if (opts?.status) query = query.eq("status", opts.status);
   if (opts?.vehicleIds) query = query.in("vehicle_id", opts.vehicleIds);
+  if (opts?.mechanicId) query = query.eq("assigned_mechanic_id", opts.mechanicId);
+  if (opts?.collectedFrom) query = query.gte("collected_at", opts.collectedFrom.toISOString());
+  if (opts?.collectedTo) query = query.lt("collected_at", opts.collectedTo.toISOString());
   const [{ data: jobs, error }, totals] = await Promise.all([
     query.order("created_at", { ascending: false }).order("id", { ascending: false }),
     liveTotals(db),
@@ -167,6 +179,13 @@ export async function getJob(id: string): Promise<JobDetail | null> {
       createLink: LINKABLE_STATUSES.includes(j.status),
     },
   };
+}
+
+/** A mechanic's name for the /jobs filter chip (inactive ones too: their jobs stay). null if no such mechanic. */
+export async function getMechanicName(id: string): Promise<string | null> {
+  const db = await createClient();
+  const { data } = await db.from("profiles").select("full_name").eq("id", id).eq("role", "mechanic").maybeSingle();
+  return data?.full_name ?? null;
 }
 
 /** Active mechanics for the "assign to" picker. Owner only. */

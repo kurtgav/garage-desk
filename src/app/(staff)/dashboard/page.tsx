@@ -1,4 +1,5 @@
 import {
+  ArrowUpRight,
   Banknote,
   CalendarDays,
   CircleCheckBig,
@@ -29,6 +30,7 @@ import type { Dashboard } from "@/lib/data/types";
 import { formatDate, formatPlate } from "@/lib/format";
 import { OPEN_STATUSES, STATUS_LABEL, type JobStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
+import { jobsHref } from "../jobs/filters";
 
 export async function generateMetadata(): Promise<Metadata> {
   // Mechanics get the generic 404 (D-020); a static title would leak into it and confirm the page exists.
@@ -37,6 +39,13 @@ export async function generateMetadata(): Promise<Metadata> {
       (await getStaff())?.role === "owner" ? "Dashboard" : "Page not found",
   };
 }
+
+/**
+ * Stretched link: its ::after covers the nearest `relative` ancestor (card or row), so the whole thing is
+ * clickable while the link stays the one keyboard/screen-reader stop; the focus ring is drawn on that ::after.
+ */
+const STRETCHED =
+  "after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-offset-2 focus-visible:after:outline-ink";
 
 /** Bar segment fill per open status: the badge's text colour. */
 const SEGMENT: Partial<Record<JobStatus, string>> = {
@@ -92,6 +101,7 @@ export default async function DashboardPage() {
         <Kpi
           icon={Banknote}
           label="Revenue this month"
+          href={jobsHref({ status: "collected", thisMonth: true })}
           footerTone="success"
           footer={`${collected} ${collected === 1 ? "job" : "jobs"} collected`}
         >
@@ -105,14 +115,18 @@ export default async function DashboardPage() {
         <Kpi
           icon={ClipboardList}
           label="Open jobs"
+          href={jobsHref({})}
           footer={`${c.in_progress ?? 0} in progress`}
+          footerHref={jobsHref({ status: "in_progress" })}
         >
           <span data-testid="count-open">{open}</span>
         </Kpi>
         <Kpi
           icon={FileClock}
           label="Awaiting approval"
+          href={jobsHref({ status: "quoted" })}
           footerTone={c.declined ? "danger" : undefined}
+          footerHref={c.declined ? jobsHref({ status: "declined" }) : undefined}
           footer={
             c.declined
               ? `${c.declined} declined ${c.declined === 1 ? "quote" : "quotes"}`
@@ -124,6 +138,7 @@ export default async function DashboardPage() {
         <Kpi
           icon={CircleCheckBig}
           label="Ready for collection"
+          href={jobsHref({ status: "ready" })}
           footer={
             d.readyJobs.length === 0
               ? "No cars waiting"
@@ -143,16 +158,25 @@ export default async function DashboardPage() {
 type KpiProps = {
   icon: typeof Banknote;
   label: string;
+  /** The jobs this figure counts. */
+  href: string;
   footer: string;
+  /** The jobs the footer fact counts, when that is a different list. */
+  footerHref?: string;
   footerTone?: "success" | "danger";
   children: React.ReactNode;
 };
 
-/** Nested KPI card (docs/DESIGN.md): grey shell, white card with the figure, a footer fact underneath. */
-function Kpi({ icon: Icon, label, footer, footerTone, children }: KpiProps) {
+/**
+ * Nested KPI card (docs/DESIGN.md): grey shell, white card with the figure, a footer fact underneath.
+ * The whole card opens `href`; a footer that counts other jobs is its own link on top.
+ */
+function Kpi({ icon: Icon, label, href, footer, footerHref, footerTone, children }: KpiProps) {
+  const tone =
+    footerTone === "success" ? "text-success" : footerTone === "danger" ? "text-danger" : "text-muted";
   return (
-    <li className="flex min-w-0 flex-col rounded-[18px] bg-raised p-1.5">
-      <div className="flex-1 rounded-lg border border-line bg-surface p-4">
+    <li className="group relative flex min-w-0 flex-col rounded-[18px] bg-raised p-1.5">
+      <div className="flex-1 rounded-lg border border-line bg-surface p-4 transition-[border-color,box-shadow] duration-150 group-hover:border-edge group-hover:shadow-frame">
         <h2 className="flex items-center gap-2 text-[15px] font-normal text-muted">
           <span
             aria-hidden
@@ -160,7 +184,15 @@ function Kpi({ icon: Icon, label, footer, footerTone, children }: KpiProps) {
           >
             <Icon className="size-4" strokeWidth={1.5} />
           </span>
-          {label}
+          <Link href={href} className={cn(STRETCHED, "after:rounded-[18px] group-hover:text-ink")}>
+            {label}
+            <span className="sr-only"> — view jobs</span>
+          </Link>
+          <ArrowUpRight
+            aria-hidden
+            className="ml-auto size-4 shrink-0 text-faint transition-[color,translate] duration-150 group-hover:text-ink motion-safe:group-hover:translate-x-0.5 motion-safe:group-hover:-translate-y-0.5"
+            strokeWidth={1.5}
+          />
         </h2>
         <p className="mt-3 truncate text-[32px] leading-10 font-medium tracking-tight text-ink tabular-nums">
           {children}
@@ -168,17 +200,17 @@ function Kpi({ icon: Icon, label, footer, footerTone, children }: KpiProps) {
       </div>
       <p className="flex items-start gap-2 px-2.5 pt-2.5 pb-1.5 text-sm">
         <Glyph />
-        <span
-          className={cn(
-            "min-w-0 flex-1",
-            footerTone === "success"
-              ? "text-success"
-              : footerTone === "danger"
-                ? "text-danger"
-                : "text-muted",
+        <span className={cn("min-w-0 flex-1", tone)}>
+          {footerHref ? (
+            <Link
+              href={footerHref}
+              className="relative z-10 underline decoration-current/30 underline-offset-4 transition-[text-decoration-color] duration-150 hover:decoration-current"
+            >
+              {footer}
+            </Link>
+          ) : (
+            footer
           )}
-        >
-          {footer}
         </span>
         <Glyph />
       </p>
@@ -246,13 +278,14 @@ function ReadyList({ jobs }: { jobs: Dashboard["readyJobs"] }) {
             </TableHeader>
             <TableBody>
               {jobs.map((job) => (
-                <TableRow key={job.id}>
+                <TableRow key={job.id} className="group relative">
                   <TableCell>
                     <span className="flex items-center gap-2.5">
                       <StatusSquare status="ready" />
+                      {/* The whole row opens the job; the ref is its one link. */}
                       <Link
                         href={`/jobs/${job.id}`}
-                        className="font-medium whitespace-nowrap hover:underline"
+                        className={cn(STRETCHED, "font-medium whitespace-nowrap after:rounded-md group-hover:underline")}
                       >
                         {job.ref}
                       </Link>
@@ -287,15 +320,10 @@ function ReadyList({ jobs }: { jobs: Dashboard["readyJobs"] }) {
                     <StatusBadge status="ready" />
                   </TableCell>
                   <TableCell className="hidden text-right md:table-cell">
-                    {/* Mouse shortcut only: the job ref is the link for keyboard and screen readers. */}
-                    <Link
-                      href={`/jobs/${job.id}`}
-                      tabIndex={-1}
-                      aria-hidden
-                      className="text-muted hover:text-ink"
-                    >
+                    {/* Visual cue only: the row is the hit area, the job ref the link. */}
+                    <span aria-hidden className="text-muted group-hover:text-ink">
                       View
-                    </Link>
+                    </span>
                   </TableCell>
                 </TableRow>
               ))}
@@ -346,8 +374,12 @@ function MechanicCard({
     count: row.byStatus[s] ?? 0,
   })).filter((p) => p.count > 0);
   const inProgress = row.byStatus.in_progress ?? 0;
+  const mechanicId = row.mechanicId;
   return (
-    <li className="min-w-0 rounded-2xl border border-line bg-surface p-2">
+    <li
+      data-testid="workload-card"
+      className="group relative min-w-0 rounded-2xl border border-line bg-surface p-2 transition-[border-color,box-shadow] duration-150 hover:border-edge hover:shadow-frame"
+    >
       <div className="relative flex h-32 flex-col justify-end rounded-lg bg-raised px-4 pt-3 pb-4">
         <span
           className={cn(
@@ -358,7 +390,7 @@ function MechanicCard({
           {inProgress > 0 ? "Working" : "Free"}
         </span>
         <p className="text-[32px] leading-10 font-medium tracking-tight text-ink tabular-nums">
-          {row.totalOpen}
+          <span data-testid="workload-open">{row.totalOpen}</span>
           <span className="ml-1.5 text-sm font-normal tracking-normal text-faint">
             open
           </span>
@@ -380,8 +412,19 @@ function MechanicCard({
         </div>
       </div>
       <div className="px-2 pt-3">
-        <h3 className="truncate text-[17px] font-medium text-ink">
-          {row.mechanicName}
+        <h3 className="flex items-center gap-2 text-[17px] font-medium text-ink">
+          <Link
+            href={jobsHref({ mechanicId })}
+            className={cn(STRETCHED, "min-w-0 truncate after:rounded-2xl group-hover:underline")}
+          >
+            {row.mechanicName}
+            <span className="sr-only"> — view open jobs</span>
+          </Link>
+          <ArrowUpRight
+            aria-hidden
+            className="ml-auto size-4 shrink-0 text-faint transition-[color,translate] duration-150 group-hover:text-ink motion-safe:group-hover:translate-x-0.5 motion-safe:group-hover:-translate-y-0.5"
+            strokeWidth={1.5}
+          />
         </h3>
         <p className="mt-0.5 text-sm text-faint">
           {inProgress} in progress <span aria-hidden>•</span>{" "}
@@ -394,18 +437,21 @@ function MechanicCard({
         ) : (
           <ul className="flex min-w-0 flex-wrap gap-1.5">
             {parts.map((p) => (
-              <li
-                key={p.s}
-                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-line px-2 text-[13px] whitespace-nowrap text-muted"
-              >
-                <span
-                  aria-hidden
-                  className={cn("size-1.5 rounded-full", SEGMENT[p.s])}
-                />
-                <span className="font-medium text-ink tabular-nums">
-                  {p.count}
-                </span>{" "}
-                {STATUS_LABEL[p.s]}
+              <li key={p.s}>
+                <Link
+                  href={jobsHref({ status: p.s, mechanicId })}
+                  className="relative z-10 inline-flex h-7 items-center gap-1.5 rounded-md border border-line bg-surface px-2 text-[13px] whitespace-nowrap text-muted transition-colors duration-150 hover:border-edge hover:bg-raised hover:text-ink"
+                >
+                  <span
+                    aria-hidden
+                    className={cn("size-1.5 rounded-full", SEGMENT[p.s])}
+                  />
+                  <span className="font-medium text-ink tabular-nums">
+                    {p.count}
+                  </span>{" "}
+                  {STATUS_LABEL[p.s]}
+                  <span className="sr-only"> jobs, {row.mechanicName}</span>
+                </Link>
               </li>
             ))}
           </ul>

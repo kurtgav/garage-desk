@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Money } from "@/components/money";
@@ -15,16 +15,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { requireStaff } from "@/lib/auth";
-import { listJobs } from "@/lib/data/jobs";
+import { getMechanicName, listJobs } from "@/lib/data/jobs";
 import { formatDate, formatPlate } from "@/lib/format";
+import { garageMonthBounds } from "@/lib/period";
 import {
-  isJobStatus,
   JOB_STATUSES,
   OPEN_STATUSES,
   STATUS_LABEL,
   type JobStatus,
 } from "@/lib/status";
 import { cn } from "@/lib/utils";
+import { jobsHref, parseJobFilters, type JobFilters } from "./filters";
 
 export const metadata: Metadata = { title: "Jobs" };
 
@@ -36,26 +37,39 @@ const FILTERS: { status?: JobStatus; label: string }[] = [
 export default async function JobsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string | string[] }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const staff = await requireStaff();
-  const { status: raw } = await searchParams;
-  const status = isJobStatus(raw) ? raw : undefined;
-  // shortcut: "Open" filters the full list in memory; add a status-set filter to listJobs if the list grows past a few hundred jobs.
-  const jobs = status
-    ? await listJobs({ status })
-    : (await listJobs()).filter((j) => OPEN_STATUSES.includes(j.status));
   const isOwner = staff.role === "owner";
+  const parsed = parseJobFilters(await searchParams, isOwner);
+  const mechanicName = parsed.mechanicId ? await getMechanicName(parsed.mechanicId) : null;
+  // An unknown mechanic id is dropped like any other invalid parameter.
+  const filters = { ...parsed, mechanicId: mechanicName ? parsed.mechanicId : undefined };
+  const { status, mechanicId, thisMonth } = filters;
+  // Same Europe/Sofia month as the dashboard's revenue figure (D-090).
+  const month = thisMonth ? garageMonthBounds() : undefined;
 
-  const scope = isOwner ? "All mechanics" : "Assigned to you";
+  // shortcut: "Open" filters the full list in memory; add a status-set filter to listJobs if the list grows past a few hundred jobs.
+  const all = await listJobs({ status, mechanicId, collectedFrom: month?.start, collectedTo: month?.end });
+  const jobs = status ? all : all.filter((j) => OPEN_STATUSES.includes(j.status));
+
+  const scope = mechanicName ?? (isOwner ? "All mechanics" : "Assigned to you");
   const noun = jobs.length === 1 ? "job" : "jobs";
-  const count = `${jobs.length} ${status ? STATUS_LABEL[status].toLowerCase() : "open"} ${noun}`;
+  const count = `${jobs.length} ${status ? STATUS_LABEL[status].toLowerCase() : "open"} ${noun}${thisMonth ? " this month" : ""}`;
+  const chips = [
+    mechanicName && { label: `Mechanic: ${mechanicName}`, href: jobsHref({ ...filters, mechanicId: undefined }) },
+    thisMonth && { label: "Collected this month", href: jobsHref({ ...filters, thisMonth: undefined }) },
+  ].filter((c) => !!c);
 
   return (
     <>
       <PageHeader
         title="Jobs"
-        description={`${scope} · ${count}, newest first`}
+        description={
+          <>
+            {scope} · <span data-testid="jobs-count">{count}</span>, newest first
+          </>
+        }
         actions={
           <Link href="/jobs/new" className={buttonVariants()}>
             <Plus aria-hidden />
@@ -72,7 +86,7 @@ export default async function JobsPage({
             return (
               <li key={f.label}>
                 <Link
-                  href={f.status ? `/jobs?status=${f.status}` : "/jobs"}
+                  href={jobsHref({ ...filters, status: f.status })}
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "inline-flex h-9 items-center rounded-[10px] px-3 text-sm whitespace-nowrap transition-colors duration-150",
@@ -89,8 +103,25 @@ export default async function JobsPage({
         </ul>
       </nav>
 
+      {chips.length > 0 && (
+        <ul aria-label="Active filters" className="-mt-2 mb-6 flex flex-wrap gap-2">
+          {chips.map((c) => (
+            <li key={c.label}>
+              <Link
+                href={c.href}
+                aria-label={`Remove filter ${c.label}`}
+                className="inline-flex h-8 items-center gap-1.5 rounded-full border border-edge bg-surface pr-2 pl-3 text-sm text-ink transition-colors duration-150 hover:border-control/40 hover:bg-raised"
+              >
+                {c.label}
+                <X aria-hidden className="size-3.5 text-faint" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+
       {jobs.length === 0 ? (
-        <JobsEmpty status={status} isOwner={isOwner} />
+        <JobsEmpty filters={filters} mechanicName={mechanicName} isOwner={isOwner} />
       ) : (
         <>
           {/* Tablet and up: a table. */}
@@ -199,12 +230,28 @@ export default async function JobsPage({
 }
 
 function JobsEmpty({
-  status,
+  filters: { status, thisMonth },
+  mechanicName,
   isOwner,
 }: {
-  status?: JobStatus;
+  filters: JobFilters;
+  mechanicName: string | null;
   isOwner: boolean;
 }) {
+  if (mechanicName || thisMonth) {
+    const what = `No ${status ? STATUS_LABEL[status].toLowerCase() : "open"} jobs`;
+    return (
+      <EmptyState
+        title={`${what}${mechanicName ? ` for ${mechanicName}` : ""}${thisMonth ? " this month" : ""}`}
+        description="Remove a filter above to see more."
+        action={
+          <Link href="/jobs" className={buttonVariants({ variant: "secondary" })}>
+            Show all open jobs
+          </Link>
+        }
+      />
+    );
+  }
   if (status) {
     return (
       <EmptyState
