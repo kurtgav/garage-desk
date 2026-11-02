@@ -13,8 +13,20 @@ import { Why } from "@/components/landing/why";
 import { getStaff, roleHome } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+const TITLE = "Garage Desk · Job cards, quotes and customer approvals";
+const DESCRIPTION =
+  "Job cards, quotes and customer approvals for independent garages: every status change on a timeline, approvals by link or phone.";
+const OG_IMAGE = { url: `${SITE_URL}/landing/dashboard.webp`, alt: "The Garage Desk owner dashboard" };
+
+// The only indexable page (D-094); the root layout keeps noindex for everything else.
 export const metadata: Metadata = {
-  title: { absolute: "Garage Desk · Job cards, quotes and customer approvals" },
+  title: { absolute: TITLE },
+  description: DESCRIPTION,
+  robots: { index: true, follow: true },
+  alternates: { canonical: `${SITE_URL}/` },
+  openGraph: { type: "website", url: `${SITE_URL}/`, siteName: "Garage Desk", title: TITLE, description: DESCRIPTION, images: [OG_IMAGE] },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION, images: [OG_IMAGE.url] },
 };
 
 /** Public product page. Never redirects: staff get "Open app" (role home), everyone else "Sign in". */

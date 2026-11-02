@@ -5,7 +5,6 @@ import type { NextConfig } from "next";
 // D-019: identical headers on every HTML response, so a valid link, a bad link
 // and any unknown URL are indistinguishable apart from the page body.
 const securityHeaders = [
-  { key: "X-Robots-Tag", value: "noindex, nofollow" },
   { key: "Referrer-Policy", value: "no-referrer" },
   { key: "Cache-Control", value: "no-store, max-age=0" },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -32,6 +31,11 @@ const nextConfig: NextConfig = {
       {
         source: "/((?!_next/static|_next/image|favicon.ico).*)",
         headers: securityHeaders,
+      },
+      // D-094: everything except the landing page "/" stays out of search (tokens, staff pages, 404s alike).
+      {
+        source: "/:path+",
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
       },
     ];
   },
