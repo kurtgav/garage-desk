@@ -2,24 +2,23 @@ import { MapPin, Phone } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
-import { Money } from "@/components/money";
 import { Timeline } from "@/components/timeline";
 import { TotalsBlock } from "@/components/totals-block";
 import { buttonVariants } from "@/components/ui/button";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatCents, formatQuantity } from "@/lib/money";
+import { formatCents, formatLineAmount, formatQuantity } from "@/lib/money";
 import { formatDateTime, formatPhone, formatPlate } from "@/lib/format";
 import { getPublicJob, type PublicJob } from "@/lib/public-job";
-import { isRateLimited } from "@/lib/rate-limit";
 import { CUSTOMER_STATUS_TEXT, type JobStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { QuoteActions } from "./quote-actions";
 
 type Props = { params: Promise<{ token: string }> };
+type Step = PublicJob["timeline"][number];
 
-// One rate-limit hit and one lookup per request, shared by generateMetadata and the page.
-// Over the limit, unknown, revoked or expired all give null (D-012, D-013).
-const loadPublicJob = cache(async (token: string) => ((await isRateLimited("publicView")) ? null : getPublicJob(token)));
+// One lookup per request, shared by generateMetadata and the page. The proxy already
+// rate-limited this view and 404s unknown/revoked tokens (D-012, D-013, D-071).
+const loadPublicJob = cache(async (token: string) => getPublicJob(token));
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const job = await loadPublicJob((await params).token);
@@ -34,32 +33,43 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 const STEP_LABEL: Record<JobStatus, string> = {
   new: "Quote in preparation",
   quoted: "Quote ready",
+  declined: "Quote declined",
   approved: "Quote approved",
   in_progress: "Work started",
   ready: "Ready for collection",
   collected: "Collected",
+  cancelled: "Job cancelled",
 };
 
 const BANNER: Record<JobStatus, string> = {
   new: "bg-status-new-bg text-status-new",
   quoted: "bg-status-quoted-bg text-status-quoted",
+  declined: "bg-status-declined-bg text-status-declined",
   approved: "bg-status-approved-bg text-status-approved",
   in_progress: "bg-status-in-progress-bg text-status-in-progress",
   ready: "bg-status-ready-bg text-status-ready",
   collected: "border border-line bg-surface text-status-collected",
+  cancelled: "border border-line bg-surface text-status-cancelled",
 };
+
+function stepTitle(step: Step, i: number, steps: Step[]): string {
+  if (step.status === "approved" && step.channel === "phone") return "Approved by phone (recorded by the garage)";
+  if (step.status === "quoted" && steps.slice(0, i).some((s) => s.status === "quoted")) return "Updated quote ready";
+  if (step.status === "in_progress" && steps[i - 1]?.status === "ready") return "Back in the workshop";
+  return STEP_LABEL[step.status];
+}
 
 export default async function CustomerJobPage({ params }: Props) {
   const { token } = await params;
   const job = await loadPublicJob(token);
-  // The same generic 404 as any other URL.
+  // Fallback only: src/proxy.ts already rewrites closed links to the server-rendered 404 before render.
   if (!job) notFound();
 
   const { garage, vehicle, totals } = job;
   const status = job.job.status;
+  const version = job.job.quote_version;
   const tel = `tel:${garage.phone.replace(/[^\d+]/g, "")}`;
   const phoneText = formatPhone(garage.phone);
-  const totalText = totals ? formatCents(totals.total_cents) : null;
 
   return (
     <main className="mx-auto flex w-full max-w-lg flex-1 flex-col px-4 pt-5 pb-8 sm:pt-10">
@@ -80,7 +90,7 @@ export default async function CustomerJobPage({ params }: Props) {
       {/* Live region: after Approve/Decline the refreshed page changes this text and it is announced. */}
       <div role="status" className={cn("mt-5 rounded-lg px-4 py-4", BANNER[status])}>
         <p className="text-lg font-semibold">{CUSTOMER_STATUS_TEXT[status]}</p>
-        <p className="mt-1 text-sm text-ink">{bannerDetail(job, totalText)}</p>
+        <p className="mt-1 text-sm text-ink">{bannerDetail(job)}</p>
       </div>
 
       {status === "ready" && (
@@ -105,9 +115,17 @@ export default async function CustomerJobPage({ params }: Props) {
 
       {job.lines.length > 0 && totals && (
         <section aria-labelledby="quote-heading" className="mt-8">
-          <h2 id="quote-heading" className="text-lg font-semibold text-ink">
-            Your quote
-          </h2>
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 id="quote-heading" className="text-lg font-semibold text-ink">
+              Your quote
+            </h2>
+            {version != null && (
+              <span data-testid="quote-version" className="text-sm font-medium text-muted">
+                Quote v{version}
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-sm text-muted">Prices excl. VAT; VAT is added once on the total.</p>
           <div className="mt-3 rounded-lg border border-line bg-surface">
             <Table className="[&_td:first-child]:pl-4 [&_th:first-child]:pl-4 [&_td:last-child]:pr-4 [&_th:last-child]:pr-4">
               <TableCaption className="sr-only">Work and parts in this quote</TableCaption>
@@ -128,8 +146,8 @@ export default async function CustomerJobPage({ params }: Props) {
                         {formatQuantity(line.quantity)} × {formatCents(line.unit_price_cents)}
                       </span>
                     </TableCell>
-                    <TableCell className="text-right align-top text-base font-medium text-ink">
-                      <Money cents={line.line_total_cents} />
+                    <TableCell className="text-right align-top text-base font-medium whitespace-nowrap text-ink">
+                      {formatLineAmount(line.line_total_cents)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -148,12 +166,8 @@ export default async function CustomerJobPage({ params }: Props) {
         </section>
       )}
 
-      {status === "quoted" && totals && (
-        <QuoteActions
-          token={token}
-          expectedTotalCents={String(totals.total_cents)}
-          totalText={formatCents(totals.total_cents)}
-        />
+      {status === "quoted" && totals && version != null && (
+        <QuoteActions token={token} expectedVersion={String(version)} totalText={formatCents(totals.total_cents)} />
       )}
 
       <section aria-labelledby="progress-heading" className="mt-8">
@@ -161,12 +175,7 @@ export default async function CustomerJobPage({ params }: Props) {
           Progress
         </h2>
         <Timeline
-          items={job.timeline.map((step, i) => ({
-            key: i,
-            // A later `new` is a decline or a staff revision; the DTO deliberately does not say which.
-            title: step.status === "new" && i > 0 ? "Quote being revised" : STEP_LABEL[step.status],
-            at: step.at,
-          }))}
+          items={job.timeline.map((step, i, steps) => ({ key: i, title: stepTitle(step, i, steps), at: step.at }))}
         />
       </section>
 
@@ -181,16 +190,26 @@ export default async function CustomerJobPage({ params }: Props) {
   );
 }
 
-function bannerDetail(job: PublicJob, totalText: string | null): string {
+function bannerDetail(job: PublicJob): string {
+  const total = job.totals ? formatCents(job.totals.total_cents) : null;
   switch (job.job.status) {
-    case "quoted":
-      return "Check the work and the price below, then approve or decline.";
     case "new":
-      return "The garage is updating your quote. Open this link again later to see the new one.";
+      return "The garage is preparing your quote. Open this link again later to see it.";
+    case "quoted":
+      // An earlier approval means the garage added or changed work since (D-050).
+      return job.timeline.some((s) => s.status === "approved")
+        ? "The garage updated your quote — please review the new total."
+        : "Check the work and the price below, then approve or decline.";
+    case "declined":
+      return "If the garage sends a new quote, it will appear on this page.";
     case "approved": {
-      const approvedAt = job.timeline.findLast((s) => s.status === "approved")?.at;
-      const when = approvedAt ? ` on ${formatDateTime(approvedAt)}` : "";
-      return totalText ? `You approved ${totalText}${when}.` : `You approved the quote${when}.`;
+      const approval = job.timeline.findLast((s) => s.status === "approved");
+      const words = [
+        `You approved ${total ?? "the quote"}`,
+        approval?.channel === "phone" && "by phone",
+        approval && `on ${formatDateTime(approval.at)}`,
+      ];
+      return `${words.filter(Boolean).join(" ")}.`;
     }
     case "in_progress":
       return "The garage is working on your car.";
@@ -198,5 +217,7 @@ function bannerDetail(job: PublicJob, totalText: string | null): string {
       return "Bring this page or your job number when you collect.";
     case "collected":
       return `Thanks for choosing ${job.garage.name}.`;
+    case "cancelled":
+      return "Call the garage if you have any questions.";
   }
 }
