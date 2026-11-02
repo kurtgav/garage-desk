@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Garage Desk user guide</title>
+<link rel="stylesheet" href="guide.css">
+</head>
+<body>
+
+<!-- Source of userguide.pdf. Built by scripts/build-user-guide.mjs, which fills the {{...}} account
+     placeholders from CREDENTIALS.local.md. Never put a real password in this file. -->
+
+<section class="cover" id="cover">
+  <div class="wordmark">
+    <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/></svg></span>
+    Garage Desk
+  </div>
+  <h1>User guide</h1>
+  <p class="sub">How to run the garage's job book in Garage Desk: for the owner and the mechanics, with a look at what your customers see on their phone.</p>
+  <span class="url">https://garage-desk-tau.vercel.app</span>
+  <p class="meta">November 2026</p>
+  <div class="callout important private">
+    <span class="label">Private</span>
+    <p>This copy contains the sign-in details of the garage's staff accounts (chapter 2). Keep it inside the garage and do not share it.</p>
+  </div>
+  <figure class="shot"><img src="img/dashboard.png" alt="The owner's dashboard in Garage Desk"></figure>
+</section>
+
+<section class="chapter" id="contents">
+  <h1>Contents</h1>
+  <ol class="toc">
+    <li><a href="#ch-1"><span class="n">1</span><span class="t">What Garage Desk does</span><span class="p" data-page-for="ch-1"></span></a></li>
+    <li><a href="#ch-2"><span class="n">2</span><span class="t">Your accounts and signing in</span><span class="p" data-page-for="ch-2"></span></a></li>
+    <li><a href="#ch-3"><span class="n">3</span><span class="t">Finding your way around</span><span class="p" data-page-for="ch-3"></span></a></li>
+    <li><a href="#ch-4"><span class="n">4</span><span class="t">The owner's dashboard <span class="who">· owner</span></span><span class="p" data-page-for="ch-4"></span></a></li>
+    <li><a href="#ch-5"><span class="n">5</span><span class="t">Customers and cars</span><span class="p" data-page-for="ch-5"></span></a></li>
+    <li><a href="#ch-6"><span class="n">6</span><span class="t">Create a job</span><span class="p" data-page-for="ch-6"></span></a></li>
+    <li><a href="#ch-7"><span class="n">7</span><span class="t">Add work and parts</span><span class="p" data-page-for="ch-7"></span></a></li>
+    <li><a href="#ch-8"><span class="n">8</span><span class="t">Send the quote and share the customer link</span><span class="p" data-page-for="ch-8"></span></a></li>
+    <li><a href="#ch-9"><span class="n">9</span><span class="t">What your customer sees</span><span class="p" data-page-for="ch-9"></span></a></li>
+    <li><a href="#ch-10"><span class="n">10</span><span class="t">After the customer answers</span><span class="p" data-page-for="ch-10"></span></a></li>
+    <li><a href="#ch-11"><span class="n">11</span><span class="t">Doing the work</span><span class="p" data-page-for="ch-11"></span></a></li>
+    <li><a href="#ch-12"><span class="n">12</span><span class="t">The timeline</span><span class="p" data-page-for="ch-12"></span></a></li>
+    <li><a href="#ch-13"><span class="n">13</span><span class="t">What mechanics see and can do</span><span class="p" data-page-for="ch-13"></span></a></li>
+    <li><a href="#ch-14"><span class="n">14</span><span class="t">Settings <span class="who">· owner</span></span><span class="p" data-page-for="ch-14"></span></a></li>
+    <li><a href="#ch-15"><span class="n">15</span><span class="t">Staff <span class="who">· owner</span></span><span class="p" data-page-for="ch-15"></span></a></li>
+    <li><a href="#ch-16"><span class="n">16</span><span class="t">Your profile</span><span class="p" data-page-for="ch-16"></span></a></li>
+    <li><a href="#ch-17"><span class="n">17</span><span class="t">Troubleshooting and questions</span><span class="p" data-page-for="ch-17"></span></a></li>
+    <li><a href="#ch-18"><span class="n">18</span><span class="t">Quick reference</span><span class="p" data-page-for="ch-18"></span></a></li>
+  </ol>
+  <div class="callout tip">
+    <span class="label">How to read this guide</span>
+    <p>Button names and labels are printed in <b>bold</b>, exactly as they appear on screen. Steps are numbered: do one step at a time. Chapters marked "owner" describe pages only the owner can open.</p>
+  </div>
+</section>
+
+<!-- 1 -->
+<section class="chapter" id="ch-1">
+  <p class="kicker">Chapter 1</p>
+  <h1>What Garage Desk does</h1>
+  <p class="lead">Garage Desk is the garage's job book. It replaces paper and WhatsApp notes. Every car that comes in gets a job. The job holds the work, the parts, the price, the customer's answer and every step until the car is collected.</p>
+
+  <h2>Three kinds of people use it</h2>
+  <table>
+    <thead><tr><th style="width:24%">Who</th><th>What they do in Garage Desk</th></tr></thead>
+    <tbody>
+      <tr><td><b>The owner</b></td><td>Sees every job and the dashboard with this month's revenue. Creates jobs for any mechanic, records approvals given by phone, cancels jobs, changes prices and VAT, and manages the staff accounts.</td></tr>
+      <tr><td><b>Mechanics</b></td><td>See and work on their own jobs. Add customers and cars, create jobs, add labour and parts, send the quote and the customer link, and move the job forward.</td></tr>
+      <tr><td><b>Customers</b></td><td>Do not need an account. They get a private link on their phone. On it they read the quote, approve or decline it, and later see when the car is ready.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>The life of a job</h2>
+  <p>Most jobs follow the same path. Each step has its own chapter.</p>
+  <ol class="steps">
+    <li>The customer calls or drives in. You find them, or add them and their car (chapter 5).</li>
+    <li>You create a job for the car and say what needs doing (chapter 6).</li>
+    <li>You add labour and parts. Garage Desk works out the totals and VAT (chapter 7).</li>
+    <li>You send the quote and give the customer their private link (chapter 8).</li>
+    <li>The customer approves or declines on their phone, or tells you by phone (chapters 9 and 10).</li>
+    <li>You start the work, mark the car ready, and mark it collected when the customer picks it up (chapter 11).</li>
+  </ol>
+  <div class="flow">
+    <span class="pill s-new">New</span><span class="arrow">→</span>
+    <span class="pill s-quoted">Quoted</span><span class="arrow">→</span>
+    <span class="pill s-approved">Approved</span><span class="arrow">→</span>
+    <span class="pill s-in_progress">In progress</span><span class="arrow">→</span>
+    <span class="pill s-ready">Ready</span><span class="arrow">→</span>
+    <span class="pill s-collected">Collected</span>
+  </div>
+  <p>Two more statuses exist: <span class="pill s-declined">Declined</span> when the customer says no, and <span class="pill s-cancelled">Cancelled</span> when the owner stops a job for good. Chapter 18 lists every status.</p>
+
+  <h2>What you need</h2>
+  <ul>
+    <li>A computer, tablet or phone with a web browser. There is nothing to install.</li>
+    <li>The address <b>https://garage-desk-tau.vercel.app</b>. Save it as a bookmark.</li>
+    <li>Your email and password (chapter 2).</li>
+  </ul>
+  <div class="callout tip">
+    <span class="label">Tip</span>
+    <p>Money is in euros. You always type prices <b>without VAT</b>. Garage Desk adds VAT once, on the job total. Times are Sofia time.</p>
+  </div>
+</section>
+
+<!-- 2 -->
+<section class="chapter" id="ch-2">
+  <p class="kicker">Chapter 2</p>
+  <h1>Your accounts and signing in</h1>
+
+  <h2>Your accounts</h2>
+  <table class="accounts">
+    <thead><tr><th>Name</th><th>Role</th><th>Email (sign in with this)</th><th>First password</th></tr></thead>
+    <tbody>
+      <tr><td><b>{{OWNER_NAME}}</b></td><td>Owner</td><td>{{OWNER_EMAIL}}</td><td><code>{{OWNER_PASSWORD}}</code></td></tr>
+      <tr><td><b>{{MECHANIC_1_NAME}}</b></td><td>Mechanic</td><td>{{MECHANIC_1_EMAIL}}</td><td><code>{{MECHANIC_1_PASSWORD}}</code></td></tr>
+      <tr><td><b>{{MECHANIC_2_NAME}}</b></td><td>Mechanic</td><td>{{MECHANIC_2_EMAIL}}</td><td><code>{{MECHANIC_2_PASSWORD}}</code></td></tr>
+      <tr><td><b>{{MECHANIC_3_NAME}}</b></td><td>Mechanic</td><td>{{MECHANIC_3_EMAIL}}</td><td><code>{{MECHANIC_3_PASSWORD}}</code></td></tr>
+    </tbody>
+  </table>
+  <div class="callout important">
+    <span class="label">Important</span>
+    <ul>
+      <li><b>Keep this document private.</b> Anyone who has it can sign in as you.</li>
+      <li><b>Change your password after your first sign-in:</b> open <b>Profile</b>, then <b>Change password</b> (chapter 16).</li>
+      <li>The owner resets a mechanic's password on the <b>Staff</b> page (chapter 15).</li>
+      <li>Passwords are case-sensitive: capital and small letters count.</li>
+    </ul>
+  </div>
+
+  <h2>Sign in</h2>
+  <div class="split wide slim">
+    <ol class="steps">
+      <li>Open <b>https://garage-desk-tau.vercel.app/login</b>. From the home page you can also press <b>Sign in</b> at the top.</li>
+      <li>Type your email in the <b>Email</b> box.</li>
+      <li>Type your password in the <b>Password</b> box. To check what you typed, press the eye icon at the right end of the box.</li>
+      <li>Press <b>Sign in</b>.</li>
+      <li>The owner lands on the <b>Dashboard</b>. A mechanic lands on <b>Jobs</b>.</li>
+    </ol>
+    <figure><img src="img/login.png" alt="Sign-in page"><figcaption>The sign-in page.</figcaption></figure>
+  </div>
+  <p>If you see <b>"Email or password is incorrect."</b>, check the spelling and capital letters, then try again. The same message appears for an account the owner has deactivated.</p>
+  <p>After 10 tries from the same network within 5 minutes, sign-in pauses and says <b>"Too many sign-in attempts. Please wait a few minutes and try again."</b> This protects the accounts from password guessing.</p>
+
+  <h2>If you forget your password</h2>
+  <div class="split wide slim">
+    <div>
+      <ol class="steps">
+        <li>Press <b>Forgot password?</b> next to the Password label.</li>
+        <li>The page explains what to do. Reset by email is not set up yet, so:
+          <ul>
+            <li><b>Mechanics:</b> ask the owner. The owner presses <b>Reset password</b> next to your name on the Staff page and gives you a new temporary password.</li>
+            <li><b>The owner:</b> contact your Garage Desk administrator.</li>
+          </ul>
+        </li>
+        <li>Sign in with the temporary password, then change it on your profile.</li>
+      </ol>
+    </div>
+    <figure><img src="img/forgot-password.png" alt="Forgot password page"><figcaption>"Forgot password?" sends staff to the owner.</figcaption></figure>
+  </div>
+
+  <h2>Sign out</h2>
+  <ol class="steps">
+    <li>Press your name at the bottom of the left menu.</li>
+    <li>Press <b>Sign out</b>.</li>
+  </ol>
+  <p>This signs you out on this device only. On a shared computer, always sign out when you finish.</p>
+</section>
+
+<!-- 3 -->
+<section class="chapter" id="ch-3">
+  <p class="kicker">Chapter 3</p>
+  <h1>Finding your way around</h1>
+  <p class="lead">Every staff page has the same frame: a menu on the left and a bar along the top.</p>
+
+  <div class="split">
+    <figure><img src="img/sidebar-menu.png" alt="The left menu with the account menu open"><figcaption>The left menu, with the account menu open at the bottom.</figcaption></figure>
+    <div>
+      <h2 style="margin-top:0">The left menu</h2>
+      <ul>
+        <li><b>Workshop</b>
+          <ul>
+            <li><b>Dashboard</b>: the owner's overview (owner only).</li>
+            <li><b>Jobs</b>: all open jobs. The blue number is how many are open.</li>
+            <li><b>Ready for collection</b>: cars waiting for their owner. The green number is how many.</li>
+            <li><b>Customers</b>: customers and their cars.</li>
+          </ul>
+        </li>
+        <li><b>Garage</b> (owner only): <b>Staff</b> and <b>Settings</b>.</li>
+        <li><b>Recent jobs</b>: the last four jobs, with a coloured square for their status. Press one to open it.</li>
+        <li><b>The small card</b> near the bottom: for the owner, <b>Revenue this month (net)</b> with <b>View dashboard</b>; for a mechanic, <b>My open jobs</b> with <b>View my jobs</b>.</li>
+        <li><b>Your name</b> at the very bottom opens the account menu: your email, <b>Profile</b> and <b>Sign out</b>.</li>
+      </ul>
+
+      <h2>The top bar</h2>
+      <ul>
+        <li>The name of the page you are on.</li>
+        <li>The search box <b>Search customers, phones, plates…</b>. Type a name, a phone number or a plate and press Enter. The results open on the Customers page.</li>
+        <li><b>New job</b>: starts a new job from anywhere (chapter 6).</li>
+      </ul>
+
+      <h2>On a phone or tablet</h2>
+      <p>The left menu is hidden to save space. Press the menu button (three lines) at the top left to open it. Your photo or initials at the top right open your profile.</p>
+    </div>
+  </div>
+  <div class="callout tip">
+    <span class="label">Tip</span>
+    <p>On a computer you can fold the left menu away with the panel icon next to <b>Garage Desk</b>, and bring it back with the same icon in the top bar.</p>
+  </div>
+
+  <h2>The Jobs list</h2>
+  <figure><img src="img/jobs.png" alt="The Jobs list"><figcaption>Jobs: open jobs first, with a tab for each status.</figcaption></figure>
+  <ul>
+    <li>Press <b>Jobs</b> in the left menu. It opens on <b>Open</b>: every job that is not Collected or Cancelled.</li>
+    <li>The tabs show one status at a time: <b>New</b>, <b>Quoted</b>, <b>Declined</b>, <b>Approved</b>, <b>In progress</b>, <b>Ready</b>, <b>Collected</b>, <b>Cancelled</b>.</li>
+    <li>Each row shows the job number, the car, the customer, the mechanic (owner only), the status, the total and the date. Press a row to open the job.</li>
+    <li>When you arrive from the dashboard, the filter is shown as a chip, for example "Collected this month". Press the × on the chip to remove it.</li>
+  </ul>
+</section>
+
+<!-- 4 -->
+<section class="chapter" id="ch-4">
+  <p class="kicker">Chapter 4 · owner</p>
+  <h1>The owner's dashboard</h1>
+  <p class="lead">The dashboard shows the state of the workshop at a glance. <b>Every card, figure, row and chip is clickable</b>: it opens the list of exactly the jobs it counts.</p>
+  <figure class="w60 center"><img src="img/dashboard.png" alt="Owner dashboard"><figcaption>The dashboard: four figures, the cars waiting to be collected, and each mechanic's workload.</figcaption></figure>
+
+  <h2>The four figures</h2>
+  <table>
+    <thead><tr><th style="width:26%">Card</th><th>What it counts</th><th style="width:30%">The line underneath</th></tr></thead>
+    <tbody>
+      <tr><td><b>Revenue this month</b></td><td>The total of jobs <b>collected</b> this month, <b>net</b> (without VAT). A job counts in the month it was collected.</td><td>How many jobs were collected.</td></tr>
+      <tr><td><b>Open jobs</b></td><td>Every job that is not Collected or Cancelled.</td><td>How many are in progress.</td></tr>
+      <tr><td><b>Awaiting approval</b></td><td>Quotes sent and waiting for the customer.</td><td>Declined quotes, in red: these need a new quote or a call.</td></tr>
+      <tr><td><b>Ready for collection</b></td><td>Cars that are finished and waiting.</td><td>How long the oldest one has waited.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Ready for collection</h2>
+  <p>The table lists the cars waiting to be collected, longest waiting first: job number, customer, plate, waiting time, total and status. Press <b>View</b> to open a job, or <b>View all</b> for the full list.</p>
+
+  <h2>Mechanic workload</h2>
+  <p>One card per mechanic. It shows how many open jobs they have and a coloured bar of their statuses. The label says <b>Working</b> (something in progress) or <b>Free</b>. Press a card to see that mechanic's open jobs.</p>
+  <div class="callout tip">
+    <span class="label">Tip</span>
+    <p>Start the day here. Red "declined quotes" and a long "oldest waiting" usually need a phone call.</p>
+  </div>
+</section>
+
+<!-- 5 -->
+<section class="chapter" id="ch-5">
+  <p class="kicker">Chapter 5</p>
+  <h1>Customers and cars</h1>
+  <p class="lead">Before you create a job, the customer and their car must be in Garage Desk. Always search first, so you do not add the same customer twice.</p>
+
+  <h2>Find a customer</h2>
+  <ol class="steps">
+    <li>Press <b>Customers</b> in the left menu.</li>
+    <li>Type part of the name, the phone number or the plate in the box <b>Name, phone or plate</b>.</li>
+    <li>Press <b>Search</b>.</li>
+    <li>Press the customer's name to open their page.</li>
+  </ol>
+  <p>You can type a phone number with or without spaces, and a plate with or without spaces: <b>CA1234AB</b> and <b>CA 1234 AB</b> find the same car. The search box in the top bar does the same from any page.</p>
+  <div class="callout important">
+    <span class="label">Important</span>
+    <p>Type plates with <b>Latin</b> letters (switch the keyboard to English). A plate typed in Cyrillic looks the same but is saved as a different plate, so search will not find it.</p>
+  </div>
+  <figure class="w70 center"><img src="img/customers.png" alt="Customers list"><figcaption>The Customers page, newest first, with search at the top.</figcaption></figure>
+
+  <h2>Add a new customer and their car</h2>
+  <ol class="steps">
+    <li>On the Customers page, press <b>New customer</b>.</li>
+    <li>Fill in <b>Full name</b>.</li>
+    <li>Fill in <b>Phone</b>, for example 088 123 4567.</li>
+    <li>Fill in <b>Email (optional)</b> if you have it.</li>
+    <li>Under <b>First vehicle</b>, fill in <b>Plate</b> (for example CA 1234 AB), <b>Make</b> and <b>Model</b>. <b>Year</b> is optional.</li>
+    <li>Press <b>Create customer</b>. The customer's page opens.</li>
+  </ol>
+  <figure class="w60 center"><img src="img/new-customer.png" alt="New customer form"><figcaption>New customer: the customer and their first car in one form.</figcaption></figure>
+
+  <h2>The customer's page</h2>
+  <figure class="w70 center"><img src="img/customer.png" alt="Customer page"><figcaption>A customer's page: their cars, their details and their jobs.</figcaption></figure>
+  <ul>
+    <li><b>Vehicles</b>: each car with a <b>New job</b> button. Press <b>Edit</b> to correct a car, or <b>Add a vehicle</b>, fill in the car and press <b>Add vehicle</b> for a second car.</li>
+    <li><b>Details</b>: change the name, phone or email and press <b>Save customer</b>.</li>
+    <li><b>Jobs</b>: the customer's jobs. A mechanic sees only the jobs assigned to them.</li>
+  </ul>
+  <p>Each plate can exist only once. If you see "A vehicle with plate … already exists. Search for it instead.", the car is already in Garage Desk: search for it.</p>
+  <p><b>Delete customer</b> (owner only) removes a customer added by mistake. It works only for a customer with no jobs, and it cannot be undone.</p>
+</section>
+
+<!-- 6 -->
+<section class="chapter" id="ch-6">
+  <p class="kicker">Chapter 6</p>
+  <h1>Create a job</h1>
+  <p class="lead">A job is one visit of one car. It starts as <span class="pill s-new">New</span>.</p>
+  <figure class="w70 center"><img src="img/new-job.png" alt="New job form"><figcaption>New job: the car, the mechanic and what needs doing. Labour and parts come on the next screen.</figcaption></figure>
+
+  <h2>The quickest way: from the customer's page</h2>
+  <ol class="steps">
+    <li>Find the customer (chapter 5) and open their page.</li>
+    <li>Next to the right car, press <b>New job</b>. The car is already chosen.</li>
+    <li>Owner only: choose the mechanic in <b>Mechanic</b>. A mechanic sees <b>Assigned to you</b> instead: a job a mechanic creates is always theirs.</li>
+    <li>In <b>What needs doing</b>, write the customer's complaint or the work they asked for.</li>
+    <li>Press <b>Create job</b>. The job page opens with its new job number, for example GD-2050.</li>
+  </ol>
+
+  <h2>From anywhere</h2>
+  <ol class="steps">
+    <li>Press <b>New job</b> in the top bar.</li>
+    <li>In <b>Vehicle</b>, open the list and choose the car. Each entry shows the plate, the car and the customer's name.</li>
+    <li>Not in the list? Press <b>New customer</b> under the list, add the customer and car, then press <b>New job</b> next to the car.</li>
+    <li>Choose the <b>Mechanic</b> (owner only), fill in <b>What needs doing</b>, and press <b>Create job</b>.</li>
+  </ol>
+  <div class="callout tip">
+    <span class="label">Tip</span>
+    <p>Write the complaint in the customer's own words ("squeaks when braking"). It stays on the job and helps the mechanic.</p>
+  </div>
+</section>
+
+<!-- 7 -->
+<section class="chapter" id="ch-7">
+  <p class="kicker">Chapter 7</p>
+  <h1>Add work and parts</h1>
+  <p class="lead">The job page is where all the work happens. Lines of labour and parts build the quote.</p>
+  <figure><img src="img/job-new.png" alt="A new job page"><figcaption>A new job. At the top: the job number, its status and the next step. Below: the car, the customer, the mechanic and the lines.</figcaption></figure>
+
+  <h2>Add a line</h2>
+  <ol class="steps">
+    <li>Scroll to <b>Add a line</b> at the bottom of the <b>Line items</b> card.</li>
+    <li>In <b>Kind</b>, choose <b>Labour</b> or <b>Part</b>.</li>
+    <li>In <b>Description</b>, write what it is, for example "Replace front brake pads" or "Brake pads (set)".</li>
+    <li>For labour: type the <b>Hours</b>, for example 1.5. The hourly rate comes from Settings, so you do not type a price.</li>
+    <li>For a part: type the <b>Quantity</b> and the <b>Unit price</b> without VAT, for example 2 and 45.90.</li>
+    <li>Press <b>Add line</b>. The line appears in the table and the totals update.</li>
+  </ol>
+  <figure class="w80 center"><img src="img/line-items.png" alt="Line items card"><figcaption>Line items with the totals and the "Add a line" form.</figcaption></figure>
+
+  <h2>How the money is worked out</h2>
+  <ul>
+    <li><b>Labour:</b> hours × the hourly rate in Settings at the moment you add the line.</li>
+    <li><b>Part:</b> quantity × unit price.</li>
+    <li><b>Net (excl. VAT):</b> all lines added together.</li>
+    <li><b>VAT</b> (for example VAT 20%): added once, on the net total, and rounded once to the cent.</li>
+    <li><b>Total:</b> net + VAT. This is what the customer approves.</li>
+  </ul>
+  <p>A line amount can show more than two decimals. That is on purpose: nothing is rounded until the total.</p>
+
+  <h2>Change or remove a line</h2>
+  <ul>
+    <li>Press the pencil icon on the line, change it and press <b>Save</b> (or <b>Cancel</b>).</li>
+    <li>Press the bin icon to remove the line.</li>
+  </ul>
+  <p>Lines can change while the job is New, Quoted, Declined, Approved or In progress. When the job is Ready, Collected or Cancelled the card says <b>Locked while …</b> and the lines cannot change.</p>
+  <div class="callout important">
+    <span class="label">Important</span>
+    <p>Once a quote has been sent, changing a line makes a <b>new version of the quote</b>, and the customer must approve the new total. A yellow note warns you before you do it. See chapter 10.</p>
+  </div>
+</section>
+
+<!-- 8 -->
+<section class="chapter" id="ch-8">
+  <p class="kicker">Chapter 8</p>
+  <h1>Send the quote and share the customer link</h1>
+
+  <h2>Send the quote</h2>
+  <ol class="steps">
+    <li>Check the lines and the total on the job page.</li>
+    <li>Press <b>Send quote</b> at the top right. (It stays grey until the job has at least one line.)</li>
+    <li>The job becomes <span class="pill s-quoted">Quoted</span>. The lines are saved as <b>Quote v1</b>, and the page says <b>Waiting for the customer's approval</b>.</li>
+  </ol>
+
+  <h2>Give the customer their link</h2>
+  <p>The link is a private web address for this one job. The customer opens it on their phone, with no account and no password.</p>
+  <div class="split wide">
+    <ol class="steps">
+      <li>In the <b>Customer link</b> card, press <b>Create customer link</b>.</li>
+      <li>The link appears in a box, with the words <b>"Shown only now. Send it to the customer before you leave this page."</b></li>
+      <li>Press <b>Share via WhatsApp</b>. WhatsApp opens a chat with the customer's number and a ready message: "Hi Maria, here is the link for your Toyota Corolla (CA 1234 BP), job GD-2050. You can see the quote and its progress here:" followed by the link.</li>
+      <li>Send the message.</li>
+      <li>No WhatsApp? Press <b>Copy</b> and paste the link into Viber, SMS or email.</li>
+    </ol>
+    <figure><img src="img/link-created.png" alt="Customer link just created"><figcaption>Right after <b>Create customer link</b>. (The link is hidden in this picture.)</figcaption></figure>
+  </div>
+  <div class="callout important">
+    <span class="label">Important</span>
+    <p>The link is shown <b>only once</b>. Garage Desk does not keep a readable copy, so after you leave the page it cannot show it again. Anyone who has the link can see the quote, so send it only to the customer.</p>
+  </div>
+
+  <h2>Later: the link panel</h2>
+  <div class="split wide">
+    <div>
+      <p>After you leave the page, the card shows <b>Link created</b> and <b>Last viewed</b>. "Last viewed" tells you when the customer last opened it, or says <b>Not opened yet</b>.</p>
+      <ul>
+        <li><b>Regenerate link</b>: makes a new link. The old one stops working straight away and shows "page not found". Use it when the customer lost the link or you sent it to the wrong person. Then send the new link.</li>
+        <li><b>Revoke link</b>: switches the link off. The customer can no longer open it.</li>
+      </ul>
+      <p>One link serves the whole job: the same link shows the quote, any new version of the quote, and the progress until collection. It does not expire.</p>
+      <p>A link can be made once the job is Quoted, and until it is Ready. The owner and the job's mechanic can make, regenerate and revoke it.</p>
+    </div>
+    <figure><img src="img/link-panel.png" alt="Customer link panel after leaving the page"><figcaption>The panel later: when it was created and last opened.</figcaption></figure>
+  </div>
+</section>
+
+<!-- 9 -->
+<section class="chapter" id="ch-9">
+  <p class="kicker">Chapter 9</p>
+  <h1>What your customer sees</h1>
+  <p class="lead">This is the customer's page on their phone. Knowing it helps you answer their questions.</p>
+  <div class="row">
+    <figure class="phone"><img src="img/customer-quote.png" alt="Customer quote on a phone"><figcaption>1. The quote. Approve and Decline stay at the bottom of the screen.</figcaption></figure>
+    <figure class="phone"><img src="img/customer-decline.png" alt="Decline dialog on a phone"><figcaption>2. Declining asks for an optional reason.</figcaption></figure>
+    <figure class="phone"><img src="img/customer-progress.png" alt="Work in progress on a phone"><figcaption>3. After approval: work in progress.</figcaption></figure>
+    <figure class="phone"><img src="img/customer-ready.png" alt="Car ready on a phone"><figcaption>4. Ready, with where to collect.</figcaption></figure>
+  </div>
+
+  <h2>From top to bottom</h2>
+  <ul>
+    <li>The garage's name and a <b>Call</b> button.</li>
+    <li>"Hi" and their first name, the car, the plate and the job number.</li>
+    <li>A coloured message with the current status, for example "Your quote is ready for approval".</li>
+    <li><b>Your quote</b>: each line with quantity × price, then net, VAT and total, and the quote version, for example <b>Quote v1</b>.</li>
+    <li><b>Happy with this quote?</b> with two buttons: <b>Decline</b> and <b>Approve</b> followed by the total. They appear only while the job is Quoted.</li>
+    <li><b>Progress</b>: each step with its date and time.</li>
+    <li>The garage's address and phone number. These come from Settings (chapter 14).</li>
+  </ul>
+
+  <h2>When the customer answers</h2>
+  <ul>
+    <li><b>Approve</b>: the job becomes Approved, and their page confirms what they approved and when.</li>
+    <li><b>Decline</b>: the page asks "Decline this quote?" with an optional <b>Reason</b>. They press <b>Decline quote</b>, or <b>Keep the quote</b> to go back.</li>
+  </ul>
+  <p>If you changed the quote while their page was open, pressing Approve on the old one changes nothing. Their page shows the new version, and they approve that one.</p>
+
+  <h2>When the car is ready</h2>
+  <p>The message turns green: <b>"Your car is ready for collection"</b>. A <b>Where to collect</b> box shows the garage's address and a call button, and the page asks the customer to bring the page or the job number.</p>
+
+  <h2>What the customer never sees</h2>
+  <p>Staff names, internal notes, their own phone number, and anything about other jobs or customers.</p>
+
+  <h2>If the link does not open</h2>
+  <p>A mistyped, regenerated or revoked link shows <b>Page not found</b>, with "Got this link from the garage? Ask them to send it again." Regenerate the link and send the new one (chapter 8).</p>
+</section>
+
+<!-- 10 -->
+<section class="chapter" id="ch-10">
+  <p class="kicker">Chapter 10</p>
+  <h1>After the customer answers</h1>
+
+  <h2>The customer approved</h2>
+  <p>The job becomes <span class="pill s-approved">Approved</span>. The timeline says <b>Approved by customer via link</b>, with the version and the total. You can start the work (chapter 11).</p>
+
+  <h2>The customer declined</h2>
+  <p>The job becomes <span class="pill s-declined">Declined</span>. Their reason, if they gave one, is on the timeline. The dashboard shows it in red under <b>Awaiting approval</b>.</p>
+  <ol class="steps">
+    <li>Call the customer and agree what to change.</li>
+    <li>Change, remove or add lines on the job (chapter 7).</li>
+    <li>Press <b>Send new quote</b>. The quote becomes <b>v2</b>.</li>
+    <li>Tell the customer to open <b>the same link</b> again. The new quote is already on it.</li>
+  </ol>
+  <p>If the customer does not want the work at all, the owner cancels the job (chapter 11).</p>
+
+  <h2>Extra work after approval</h2>
+  <p>Sometimes the mechanic finds more work once the car is open. The customer must agree to the new total before you carry on.</p>
+  <ol class="steps">
+    <li>Phone the customer and explain the extra work.</li>
+    <li>On the job, add or change the lines. A yellow note warns: "Changing lines creates quote v2; the customer must approve again."</li>
+    <li>When you save the line, the job goes back to <span class="pill s-quoted">Quoted</span> as the next version, by itself.</li>
+    <li>The customer's link now says "The garage updated your quote — please review the new total." They approve it on the same link, or the owner records it by phone.</li>
+    <li>Once approved, press <b>Start work</b> again to carry on.</li>
+  </ol>
+  <p>The earlier approval stays on record. <b>Quote history</b> on the job lists every version with its net, VAT and total, and marks the approved one.</p>
+
+  <h2>The customer approved by phone (owner)</h2>
+  <div class="split wide">
+    <ol class="steps">
+      <li>Open the job. It must be Quoted.</li>
+      <li>Press <b>Record phone approval</b>.</li>
+      <li>In <b>How did they approve?</b>, write who you spoke to and when, for example "Maria, by phone, 10:40".</li>
+      <li>Press <b>Approve v1 · €…</b> (the button shows the version and the total).</li>
+    </ol>
+    <figure><img src="img/phone-approval.png" alt="Record phone approval dialog"><figcaption>Recording a phone approval. The note is required.</figcaption></figure>
+  </div>
+  <p>The timeline shows <b>Phone approval recorded by</b> your name, so it is clear the customer did not press the button themselves. Mechanics cannot record phone approvals: they ask the owner.</p>
+</section>
+
+<!-- 11 -->
+<section class="chapter" id="ch-11">
+  <p class="kicker">Chapter 11</p>
+  <h1>Doing the work</h1>
+  <p class="lead">The buttons at the top right of the job page always show the next step. Press one to move the job on.</p>
+  <figure><img src="img/job-approved.png" alt="An approved job"><figcaption>An approved job: <b>Start work</b> is the next step.</figcaption></figure>
+
+  <h2>From approval to collection</h2>
+  <ol class="steps">
+    <li><b>Start work</b>: the job becomes <span class="pill s-in_progress">In progress</span>. The customer's link says "Work in progress".</li>
+    <li><b>Mark ready for collection</b>: the job becomes <span class="pill s-ready">Ready</span>. It appears under <b>Ready for collection</b>, and the customer's link tells them the car is ready and where to collect it.</li>
+    <li>When the customer has paid and taken the car, press <b>Mark collected</b>. The job becomes <span class="pill s-collected">Collected</span> and counts in this month's revenue. Nothing changes after this.</li>
+  </ol>
+
+  <h2>The car comes back: rework</h2>
+  <p>While a job is Ready, press <b>Back to work (rework)</b>. Add a note if you like (it shows on the timeline, not to the customer), then confirm. The job goes back to In progress and the customer's link says "Back in the workshop". If the rework costs extra, add lines: the customer approves the new version (chapter 10).</p>
+
+  <h2>Give the job to another mechanic (owner)</h2>
+  <ol class="steps">
+    <li>On the job page, next to <b>Mechanic</b>, press <b>Reassign</b>.</li>
+    <li>Choose the mechanic.</li>
+    <li>Press <b>Reassign</b>. The new mechanic sees the job; the previous one no longer does.</li>
+  </ol>
+
+  <h2>Cancel a job (owner)</h2>
+  <div class="split wide">
+    <ol class="steps">
+      <li>Press <b>Cancel job</b>.</li>
+      <li>Write the <b>Reason</b>. It is required.</li>
+      <li>Press <b>Cancel job</b> in the window. To back out, press <b>Keep as …</b> instead.</li>
+    </ol>
+    <figure><img src="img/cancel-job.png" alt="Cancel job dialog"><figcaption>Cancelling is final.</figcaption></figure>
+  </div>
+  <div class="callout important">
+    <span class="label">Important</span>
+    <p>A cancelled job cannot be reopened and never counts as revenue. The customer's link says the job was cancelled. Jobs are never deleted, so the history stays.</p>
+  </div>
+</section>
+
+<!-- 12 -->
+<section class="chapter" id="ch-12">
+  <p class="kicker">Chapter 12</p>
+  <h1>The timeline</h1>
+  <p class="lead">Every job has a <b>Timeline</b> card on the right of the job page. It is the job's record: what happened, when, and who did it.</p>
+  <div class="split wide">
+    <div>
+      <h2 style="margin-top:0">What it records</h2>
+      <ul>
+        <li><b>Job created</b></li>
+        <li><b>Quote sent</b>, with the version and total, for example "— v1 · €145.50"</li>
+        <li><b>Approved by customer via link</b>, or <b>Phone approval recorded by</b> the owner, with the version and total</li>
+        <li><b>Declined by customer</b>, with their reason</li>
+        <li><b>New quote sent</b> and <b>Quote revised after line change</b></li>
+        <li><b>Work started</b>, <b>Ready for collection</b>, <b>Back to work (rework)</b></li>
+        <li><b>Collected</b>, or <b>Job cancelled</b> with the reason</li>
+      </ul>
+      <p>Each entry shows the date, the time and the staff member's name. Notes you type when you move a job appear under the entry.</p>
+      <h2>Why it matters</h2>
+      <ul>
+        <li>Nobody can edit or delete it.</li>
+        <li>It proves which version of the quote the customer approved, for which total, and when.</li>
+        <li>The name on each entry is the name the person had at that moment. If someone later changes their name on their profile, the history does not change.</li>
+      </ul>
+      <p>If a customer disputes a bill, open the job and read the timeline together with <b>Quote history</b>.</p>
+    </div>
+    <figure><img src="img/timeline.png" alt="Timeline of a collected job"><figcaption>The timeline of a collected job.</figcaption></figure>
+  </div>
+</section>
+
+<!-- 13 -->
+<section class="chapter" id="ch-13">
+  <p class="kicker">Chapter 13</p>
+  <h1>What mechanics see and can do</h1>
+  <p class="lead">A mechanic signs in to <b>Jobs</b>, which lists the jobs assigned to them.</p>
+  <figure><img src="img/mechanic-jobs.png" alt="A mechanic's jobs list"><figcaption>A mechanic's Jobs page: only their own jobs, with tabs for each status.</figcaption></figure>
+  <div class="row">
+    <div style="flex:1">
+      <h2 style="margin-top:0">A mechanic can</h2>
+      <ul>
+        <li>See all customers and cars, add them and edit them.</li>
+        <li>Create jobs. They are assigned to themselves.</li>
+        <li>On their own jobs: add and change lines, send the quote, make, regenerate and revoke the customer link.</li>
+        <li>On their own jobs: <b>Start work</b>, <b>Mark ready for collection</b>, <b>Mark collected</b> and <b>Back to work (rework)</b>.</li>
+        <li>Edit their own profile and password.</li>
+      </ul>
+    </div>
+    <div style="flex:1">
+      <h2 style="margin-top:0">Only the owner can</h2>
+      <ul>
+        <li>See other mechanics' jobs, the dashboard and the revenue.</li>
+        <li>Record a phone approval.</li>
+        <li>Cancel a job or give it to another mechanic.</li>
+        <li>Delete a customer.</li>
+        <li>Open <b>Settings</b> and <b>Staff</b>.</li>
+      </ul>
+    </div>
+  </div>
+  <p>If a mechanic opens a page they cannot use, or another mechanic's job, Garage Desk shows <b>Page not found</b>, the same as for a wrong address.</p>
+  <p>Empty lists say whose jobs they are, for example <b>No open jobs assigned to you</b>. That means you have nothing open, not that the garage is empty.</p>
+  <p>The tabs above the list filter by status: <b>Open</b>, then <b>New</b>, <b>Quoted</b>, <b>Declined</b>, <b>Approved</b>, <b>In progress</b>, <b>Ready</b>, <b>Collected</b> and <b>Cancelled</b>.</p>
+</section>
+
+<!-- 14 -->
+<section class="chapter" id="ch-14">
+  <p class="kicker">Chapter 14 · owner</p>
+  <h1>Settings</h1>
+  <p class="lead">Settings holds the garage's prices and details. Only the owner can open it.</p>
+  <figure class="w70 center"><img src="img/settings.png" alt="Settings page"><figcaption>Settings: the hourly rate, VAT and the garage details customers see.</figcaption></figure>
+  <ol class="steps">
+    <li>Press <b>Settings</b> in the left menu.</li>
+    <li>Change what you need:
+      <ul>
+        <li><b>Hourly rate (€, excl. VAT)</b>: the price of one hour of labour.</li>
+        <li><b>VAT (%)</b>: the VAT rate, for example 20.</li>
+        <li><b>Garage details</b>: <b>Garage name</b>, <b>Address</b> and <b>Phone</b>. Customers see these on their page.</li>
+      </ul>
+    </li>
+    <li>Press <b>Save settings</b>. The page says "Settings saved."</li>
+  </ol>
+  <h2>What a change affects</h2>
+  <table>
+    <thead><tr><th style="width:30%">You change</th><th>It applies to</th><th>It does not change</th></tr></thead>
+    <tbody>
+      <tr><td><b>Hourly rate</b></td><td>Labour lines added from now on.</td><td>Lines already on a job. They keep their price.</td></tr>
+      <tr><td><b>VAT (%)</b></td><td>Jobs created from now on.</td><td>Existing jobs. They keep their VAT rate.</td></tr>
+      <tr><td><b>Garage details</b></td><td>Every customer's page, straight away.</td><td>Nothing else.</td></tr>
+    </tbody>
+  </table>
+  <div class="callout tip">
+    <span class="label">Tip</span>
+    <p>Changing a setting never alters a quote that was already sent. To give a customer a new price, change the lines on their job: they approve the new version.</p>
+  </div>
+</section>
+
+<!-- 15 -->
+<section class="chapter" id="ch-15">
+  <p class="kicker">Chapter 15 · owner</p>
+  <h1>Staff</h1>
+  <p class="lead">The Staff page lists everyone who can sign in: photo, name, email, role, status (<b>Active</b> or <b>Inactive</b>) and how many open jobs they have.</p>
+  <figure><img src="img/staff.png" alt="Staff page"><figcaption>The Staff page. Your own row has no buttons; it links to your profile.</figcaption></figure>
+
+  <h2>Add a mechanic</h2>
+  <div class="split wide">
+    <ol class="steps">
+      <li>Press <b>Add mechanic</b>.</li>
+      <li>Fill in their <b>Full name</b> and <b>Email</b>.</li>
+      <li>Press <b>Add mechanic</b>.</li>
+      <li>A <b>Temporary password</b> appears. Press <b>Copy password</b>, or write it down.</li>
+      <li>Give it to the mechanic privately, in person or by phone.</li>
+      <li>Press <b>Done</b>.</li>
+      <li>The mechanic signs in and changes the password on their profile.</li>
+    </ol>
+    <figure><img src="img/add-mechanic.png" alt="Add a mechanic dialog"><figcaption>Add a mechanic: name and email.</figcaption></figure>
+  </div>
+  <div class="callout important">
+    <span class="label">Important</span>
+    <p>The temporary password is shown <b>only once</b>. When you close the window it is gone. If it is lost, use <b>Reset password</b> to make a new one.</p>
+  </div>
+
+  <h2>Reset a mechanic's password</h2>
+  <ol class="steps">
+    <li>Press <b>Reset password</b> on the mechanic's row.</li>
+    <li>Press <b>Reset password</b> in the window to confirm. Their old password stops working.</li>
+    <li>Copy the new temporary password and give it to them privately, then press <b>Done</b>.</li>
+  </ol>
+  <p>This works only for active mechanics: reactivate a mechanic first. The owner's password is never reset here. You change your own on your profile; if you have forgotten it, contact your Garage Desk administrator.</p>
+
+  <h2>When someone leaves: deactivate</h2>
+  <ol class="steps">
+    <li>Press <b>Deactivate</b> on their row.</li>
+    <li>Read the window. It says they are signed out everywhere at once and cannot sign in until you reactivate them. Their job history is kept. If they still have open jobs, it says how many stay assigned to them.</li>
+    <li>Press <b>Deactivate</b>.</li>
+    <li>If they had open jobs, their row shows <b>… open jobs · Reassign</b>, and their dashboard card says <b>Inactive · reassign</b>. Press either to see those jobs.</li>
+    <li>Open each job and use <b>Reassign</b> to give it to another mechanic (chapter 11).</li>
+  </ol>
+
+  <h2>Reactivate</h2>
+  <p>Press <b>Reactivate</b> on their row and confirm. They can sign in again with their current password.</p>
+  <p>Nobody can deactivate themselves, and the garage always keeps at least one active owner.</p>
+</section>
+
+<!-- 16 -->
+<section class="chapter" id="ch-16">
+  <p class="kicker">Chapter 16</p>
+  <h1>Your profile</h1>
+  <p class="lead">Everyone has a profile. Open it from the account menu: press your name at the bottom of the left menu, then <b>Profile</b>. On a phone, press your photo or initials at the top right.</p>
+  <figure class="w70 center"><img src="img/profile.png" alt="Profile page"><figcaption>Your profile: photo, details and password.</figcaption></figure>
+  <div class="row">
+    <div style="flex:1">
+      <h2 style="margin-top:0">Your photo</h2>
+      <ol class="steps">
+        <li>Press <b>Upload photo</b> (or <b>Change photo</b>).</li>
+        <li>Choose a PNG, JPEG or WebP picture, up to 2 MB.</li>
+        <li>Check the preview, then press <b>Save photo</b>.</li>
+      </ol>
+      <p><b>Remove photo</b> goes back to your initials.</p>
+
+      <h2>Your details</h2>
+      <ol class="steps">
+        <li>Change <b>Full name</b>, <b>Phone (optional)</b> or <b>About (optional)</b>.</li>
+        <li>Press <b>Save details</b>.</li>
+      </ol>
+      <p>Your <b>Email</b> is shown but cannot be changed here. No two staff members can have the same name.</p>
+    </div>
+    <div style="flex:1">
+      <h2 style="margin-top:0">Change your password</h2>
+      <ol class="steps">
+        <li>Type your <b>Current password</b>.</li>
+        <li>Type the <b>New password</b>: 12 to 72 characters, with capital and small letters and a digit.</li>
+        <li>Type it again in <b>Confirm new password</b>.</li>
+        <li>Press <b>Change password</b>. The page says "Password changed."</li>
+      </ol>
+      <p>Changing your password signs you out on your other devices.</p>
+    </div>
+  </div>
+  <div class="callout tip">
+    <span class="label">Who sees what</span>
+    <p>Colleagues see your name and photo. Nobody else, the owner included, can read your phone number or your "About" text.</p>
+  </div>
+</section>
+
+<!-- 17 -->
+<section class="chapter" id="ch-17">
+  <p class="kicker">Chapter 17</p>
+  <h1>Troubleshooting and questions</h1>
+  <table>
+    <thead><tr><th style="width:38%">You see or ask</th><th>What to do</th></tr></thead>
+    <tbody>
+      <tr><td>"Email or password is incorrect."</td><td>Check the email and the capital letters. Use the eye icon to see what you typed. Still stuck: a mechanic asks the owner to reset the password; the owner contacts the administrator.</td></tr>
+      <tr><td>"Too many sign-in attempts. Please wait a few minutes and try again."</td><td>Wait 5 minutes, then try once, carefully.</td></tr>
+      <tr><td>"Password reset by email isn't set up yet."</td><td>Normal for now. Ask the owner to reset your password on the Staff page.</td></tr>
+      <tr><td><b>Page not found</b></td><td>The address is wrong, the page is for the owner only, or the job belongs to another mechanic. Use the left menu to get back.</td></tr>
+      <tr><td><b>Something went wrong</b></td><td>The page did not load. Nothing was lost. Press <b>Try again</b>, or <b>Go to jobs</b>. If it keeps happening, check your internet connection.</td></tr>
+      <tr><td><b>Send quote</b> is grey</td><td>Add at least one line first.</td></tr>
+      <tr><td>I cannot change the lines</td><td>The job is Ready, Collected or Cancelled ("Locked while …"). For more work on a Ready job, press <b>Back to work (rework)</b> first.</td></tr>
+      <tr><td>I left the page and lost the customer link</td><td>Press <b>Regenerate link</b> and send the new one. The old one stops working.</td></tr>
+      <tr><td>The customer says the link does not work</td><td>It was mistyped, regenerated or revoked. Regenerate it and send it again.</td></tr>
+      <tr><td>The customer wants to change the work after approving</td><td>Change the lines. The job goes back to Quoted as a new version, and they approve the new total.</td></tr>
+      <tr><td>The customer approved by phone</td><td>The owner presses <b>Record phone approval</b> and writes who approved and when.</td></tr>
+      <tr><td>Search does not find a plate</td><td>Type the plate with Latin letters. Spaces do not matter.</td></tr>
+      <tr><td>Can I delete a job?</td><td>No. The owner cancels it with a reason; the history stays.</td></tr>
+      <tr><td>Why is a job missing from this month's revenue?</td><td>Revenue counts only jobs marked <b>Collected</b> this month, without VAT. Mark the job collected when the customer takes the car.</td></tr>
+      <tr><td>Does the customer need an account or an app?</td><td>No. The link opens in their phone's browser.</td></tr>
+      <tr><td>I lost my phone, or someone saw my password</td><td>Change your password on your profile: that signs out your other devices. If you cannot sign in, ask the owner to deactivate your account until it is sorted.</td></tr>
+      <tr><td>A mechanic left the garage</td><td>The owner deactivates them on Staff and reassigns their open jobs.</td></tr>
+      <tr><td>I want to change my email</td><td>It cannot be changed in the app. Ask your Garage Desk administrator.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 18 -->
+<section class="chapter" id="ch-18">
+  <p class="kicker">Chapter 18</p>
+  <h1>Quick reference</h1>
+
+  <h2>Job statuses</h2>
+  <table>
+    <thead><tr><th style="width:17%">Status</th><th style="width:31%">Meaning</th><th style="width:25%">Next step</th><th>The customer's link says</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill s-new">New</span></td><td>Created, quote not sent yet.</td><td><b>Send quote</b></td><td>Your quote is being prepared</td></tr>
+      <tr><td><span class="pill s-quoted">Quoted</span></td><td>Waiting for the customer's answer.</td><td>Customer approves or declines; owner can <b>Record phone approval</b></td><td>Your quote is ready for approval</td></tr>
+      <tr><td><span class="pill s-declined">Declined</span></td><td>The customer said no.</td><td>Change lines, <b>Send new quote</b></td><td>You declined this quote — the garage may send you a new one</td></tr>
+      <tr><td><span class="pill s-approved">Approved</span></td><td>The customer said yes.</td><td><b>Start work</b></td><td>Quote approved — work will start soon</td></tr>
+      <tr><td><span class="pill s-in_progress">In progress</span></td><td>The car is being worked on.</td><td><b>Mark ready for collection</b></td><td>Work in progress</td></tr>
+      <tr><td><span class="pill s-ready">Ready</span></td><td>Finished, waiting for the customer.</td><td><b>Mark collected</b>, or <b>Back to work (rework)</b></td><td>Your car is ready for collection</td></tr>
+      <tr><td><span class="pill s-collected">Collected</span></td><td>The customer took the car. Final.</td><td>Nothing</td><td>Collected — thank you!</td></tr>
+      <tr><td><span class="pill s-cancelled">Cancelled</span></td><td>Stopped by the owner. Final.</td><td>Nothing</td><td>This job was cancelled</td></tr>
+    </tbody>
+  </table>
+  <p>Changing the lines of a Quoted, Approved or In progress job makes a new quote version and puts the job back to Quoted. The owner can cancel any job that is not Collected or Cancelled.</p>
+
+  <h2>Who can do what</h2>
+  <table>
+    <thead><tr><th>Task</th><th style="width:15%">Owner</th><th style="width:30%">Mechanic</th></tr></thead>
+    <tbody>
+      <tr><td>Add and edit customers and cars</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+      <tr><td>Delete a customer with no jobs</td><td class="yes">Yes</td><td class="no">No</td></tr>
+      <tr><td>Create a job</td><td class="yes">For any mechanic</td><td class="yes">Assigned to themselves</td></tr>
+      <tr><td>See jobs</td><td class="yes">All</td><td class="yes">Their own</td></tr>
+      <tr><td>Add and change lines, send the quote</td><td class="yes">Any job</td><td class="yes">Their own jobs</td></tr>
+      <tr><td>Make, regenerate, revoke the customer link</td><td class="yes">Any job</td><td class="yes">Their own jobs</td></tr>
+      <tr><td>Record a phone approval</td><td class="yes">Yes</td><td class="no">No</td></tr>
+      <tr><td>Start work, mark ready, mark collected, rework</td><td class="yes">Any job</td><td class="yes">Their own jobs</td></tr>
+      <tr><td>Reassign or cancel a job</td><td class="yes">Yes</td><td class="no">No</td></tr>
+      <tr><td>Dashboard and revenue</td><td class="yes">Yes</td><td class="no">No</td></tr>
+      <tr><td>Settings and Staff</td><td class="yes">Yes</td><td class="no">No</td></tr>
+      <tr><td>Own profile and password</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Remember</h2>
+  <ul>
+    <li>Prices are typed <b>without VAT</b>. VAT is added once, on the total.</li>
+    <li>The customer link is shown <b>once</b>. Send it straight away.</li>
+    <li>A changed quote needs a new approval.</li>
+    <li>Mark a job <b>Collected</b> when the car leaves: that is when it counts as revenue.</li>
+  </ul>
+</section>
+
+</body>
+</html>

@@ -1,0 +1,165 @@
+/* Garage Desk user guide: print stylesheet (A4). Rendered to PDF by scripts/build-user-guide.mjs. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+:root {
+  --ink: #18181b;
+  --body: #3f3f46;
+  --muted: #71717a;
+  --rule: #e4e4e7;
+  --soft: #f4f4f5;
+  --accent: #1d4ed8;
+  --accent-soft: #eff6ff;
+  --warn: #b45309;
+  --warn-soft: #fffbeb;
+}
+
+@page {
+  size: A4;
+  margin: 17mm 18mm 19mm;
+  @bottom-left {
+    content: "Garage Desk · User guide";
+    font: 400 7.5pt Inter, "Segoe UI", system-ui, sans-serif;
+    color: #a1a1aa;
+  }
+  @bottom-right {
+    content: "Page " counter(page) " of " counter(pages);
+    font: 400 7.5pt Inter, "Segoe UI", system-ui, sans-serif;
+    color: #a1a1aa;
+  }
+}
+@page cover {
+  margin: 0;
+  @bottom-left { content: none; }
+  @bottom-right { content: none; }
+}
+
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body {
+  margin: 0;
+  background: #fff;
+  color: var(--body);
+  font: 400 10pt/1.55 Inter, "Segoe UI", system-ui, sans-serif;
+  font-feature-settings: "cv11", "ss01";
+}
+/* On screen, show it as stacked A4 sheets. */
+@media screen {
+  body { background: #e4e4e7; padding: 10mm 0; }
+  body > section { width: 210mm; min-height: 297mm; margin: 0 auto 10mm; padding: 17mm 18mm 19mm; background: #fff; }
+  body > section.cover { padding: 0; }
+}
+
+h1, h2, h3 { color: var(--ink); font-weight: 600; letter-spacing: -0.01em; break-after: avoid; }
+h1 { font-size: 21pt; line-height: 1.2; margin: 0 0 3mm; }
+h2 { font-size: 12.5pt; line-height: 1.3; margin: 7mm 0 2mm; }
+h3 { font-size: 10.5pt; margin: 5mm 0 1.5mm; }
+p { margin: 0 0 2.5mm; }
+p, li { orphans: 2; widows: 2; }
+b, strong { color: var(--ink); font-weight: 600; }
+a { color: var(--accent); text-decoration: none; }
+ul { margin: 0 0 3mm; padding-left: 5mm; }
+ul li { margin-bottom: 1mm; }
+code { font-family: "Cascadia Mono", Consolas, "Courier New", monospace; font-size: 9pt; }
+
+/* Chapters start on a new page. */
+section.chapter { break-before: page; }
+.kicker { margin: 0 0 1mm; color: var(--accent); font-size: 8.5pt; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.lead { font-size: 11pt; color: var(--body); margin-bottom: 4mm; }
+
+/* Numbered steps: one action per step. */
+ol.steps { list-style: none; counter-reset: step; margin: 0 0 4mm; padding: 0; }
+ol.steps > li { counter-increment: step; position: relative; margin: 0 0 2mm; padding-left: 8.5mm; break-inside: avoid; }
+ol.steps > li::before {
+  content: counter(step);
+  position: absolute; left: 0; top: 0.1mm;
+  width: 5.4mm; height: 5.4mm; border-radius: 50%;
+  background: var(--ink); color: #fff;
+  font-size: 7.5pt; font-weight: 600; line-height: 5.4mm; text-align: center;
+}
+ol.steps ul { margin-top: 1mm; }
+
+/* Callouts. */
+.callout { margin: 3mm 0 4mm; padding: 2.6mm 4mm 2.8mm; border-left: 2.5pt solid; border-radius: 0 3px 3px 0; break-inside: avoid; }
+.callout > :last-child { margin-bottom: 0; }
+.callout .label { display: block; margin-bottom: 0.6mm; font-size: 7.5pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.tip { background: var(--accent-soft); border-color: var(--accent); }
+.tip .label { color: var(--accent); }
+.important { background: var(--warn-soft); border-color: var(--warn); }
+.important .label { color: var(--warn); }
+
+/* Screenshots. */
+figure { margin: 3mm 0 5mm; break-inside: avoid; }
+figure img { display: block; width: 100%; height: auto; border: 0.6pt solid #d4d4d8; border-radius: 3px; }
+figcaption { margin-top: 1.6mm; color: var(--muted); font-size: 8.5pt; line-height: 1.4; }
+figure.w80 { width: 80%; }
+figure.w70 { width: 70%; }
+figure.w60 { width: 60%; }
+figure.w50 { width: 50%; }
+figure.center { margin-left: auto; margin-right: auto; }
+.row { display: flex; gap: 6mm; align-items: flex-start; break-inside: avoid; }
+.row > figure { flex: 1 1 0; min-width: 0; margin-top: 2mm; }
+.row > figure.narrow { flex: 0 0 auto; }
+figure.phone img { border-radius: 8px; }
+.split { display: grid; grid-template-columns: 50mm 1fr; gap: 7mm; align-items: start; }
+.split > figure { margin-top: 1mm; }
+.split.wide { grid-template-columns: 1fr 72mm; }
+.split.wide.slim { grid-template-columns: 1fr 56mm; }
+
+/* Tables. */
+table { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; font-size: 9pt; line-height: 1.45; }
+th { text-align: left; font-weight: 600; color: var(--ink); background: var(--soft); }
+th, td { padding: 1.8mm 2.4mm; border-bottom: 0.6pt solid var(--rule); vertical-align: top; }
+tr { break-inside: avoid; }
+td.yes { color: #15803d; font-weight: 600; }
+td.no { color: var(--muted); }
+
+/* Status pills (same colours as the app). */
+.pill { display: inline-block; white-space: nowrap; padding: 0.3mm 2.2mm 0.4mm; border-radius: 99px; font-size: 8pt; font-weight: 500; }
+.pill::before { content: ""; display: inline-block; width: 1.5mm; height: 1.5mm; margin: 0 1.3mm 0.25mm 0; border-radius: 50%; background: currentColor; vertical-align: middle; }
+.s-new { color: #3f3f46; background: #f4f4f5; }
+.s-quoted { color: #1d4ed8; background: #eff6ff; }
+.s-declined { color: #be123c; background: #fff1f2; }
+.s-approved { color: #4338ca; background: #eef2ff; }
+.s-in_progress { color: #b45309; background: #fffbeb; }
+.s-ready { color: #15803d; background: #dcfce7; }
+.s-collected { color: #52525b; background: #fff; box-shadow: inset 0 0 0 0.6pt #d4d4d8; }
+.s-cancelled { color: #6e6e77; background: #fff; box-shadow: inset 0 0 0 0.6pt #d4d4d8; }
+
+/* Flow diagram of a job. */
+.flow { display: flex; flex-wrap: wrap; align-items: center; gap: 1.6mm 1.2mm; margin: 2mm 0 4mm; font-size: 8.5pt; }
+.flow .arrow { color: #a1a1aa; }
+
+/* Cover. */
+.cover { page: cover; display: flex; flex-direction: column; height: 297mm; padding: 24mm 22mm 0; overflow: hidden; background: #fafafa; }
+.cover > * { flex: 0 0 auto; }
+.wordmark { display: inline-flex; align-items: center; gap: 3.2mm; color: var(--ink); font-size: 17pt; font-weight: 600; letter-spacing: -0.02em; }
+.wordmark .mark { display: grid; place-items: center; width: 11mm; height: 11mm; border-radius: 2.4mm; background: var(--ink); }
+.wordmark svg { width: 6.4mm; height: 6.4mm; }
+.cover h1 { margin: 24mm 0 4mm; font-size: 40pt; line-height: 1.05; letter-spacing: -0.03em; }
+.cover .sub { max-width: 130mm; font-size: 13pt; line-height: 1.5; color: var(--body); }
+.cover .url { align-self: flex-start; margin-top: 7mm; padding: 2.6mm 4.5mm; border-radius: 99px; background: var(--ink); color: #fff; font-size: 11pt; font-weight: 500; }
+.cover .meta { margin: 4mm 0 0; color: var(--muted); font-size: 9.5pt; }
+.cover .private { margin: 8mm 0 0; max-width: 140mm; }
+/* Dashboard screenshot bleeding off the right and bottom edges. */
+.cover .shot { margin: auto -22mm 0 0; height: 112mm; overflow: hidden; break-inside: auto; }
+.cover .shot img { width: 205mm; border-width: 0.6pt 0 0 0.6pt; border-radius: 4mm 0 0 0; }
+
+/* Contents. */
+.toc { list-style: none; margin: 6mm 0 0; padding: 0; }
+.toc li { margin: 0; }
+.toc a { display: flex; align-items: baseline; gap: 2.5mm; padding: 1.75mm 0; border-bottom: 0.6pt solid var(--rule); color: var(--ink); font-size: 10.5pt; }
+.toc .n { width: 7mm; color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+.toc .t { flex: 1; }
+.toc .who { color: var(--muted); font-size: 8.5pt; }
+.toc .p { min-width: 8mm; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Quick reference fits one page, to print and pin up. */
+#ch-18 h2 { margin-top: 4.5mm; }
+#ch-18 table { font-size: 8.3pt; line-height: 1.35; margin-bottom: 3mm; }
+#ch-18 th, #ch-18 td { padding: 0.9mm 2mm; }
+#ch-18 ul li { margin-bottom: 0.5mm; }
+
+/* Your accounts. */
+table.accounts { font-size: 10pt; }
+table.accounts td { padding: 2.6mm 2.4mm; }
+table.accounts code { font-size: 10.5pt; color: var(--ink); background: var(--soft); padding: 0.6mm 1.6mm; border-radius: 2px; letter-spacing: 0.02em; }
