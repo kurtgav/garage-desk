@@ -12,6 +12,8 @@ describe("DB error → user sentence", () => {
       "invalid_mechanic",
       "not_linkable",
       "kind_immutable",
+      "quote_changed",
+      "note_required",
     ]) {
       const msg = staffErrorMessage({ message: code, code: "P0001" });
       expect(msg).not.toContain(code);

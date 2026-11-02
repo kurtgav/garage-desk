@@ -4,7 +4,7 @@ import type { JobStatus } from "@/lib/status";
 import { createClient } from "@/lib/supabase/server";
 import type { Dashboard } from "./types";
 
-/** Shape of get_dashboard()'s JSON (D-027). */
+/** Shape of get_dashboard()'s JSON (D-027, D-056). */
 interface DashboardJson {
   counts_by_status: Record<JobStatus, number>;
   ready_jobs: {
@@ -16,7 +16,7 @@ interface DashboardJson {
     ready_since: string;
     days_waiting: number;
   }[];
-  revenue: { excl_vat_cents: number; incl_vat_cents: number; jobs_count: number; month_start: string; month_end: string };
+  revenue: { net_cents: number; jobs_count: number; month_start: string; month_end: string };
   workload: { mechanic_id: string; mechanic_name: string; total_open: number; by_status: Partial<Record<JobStatus, number>> }[];
 }
 
@@ -39,8 +39,7 @@ export async function getDashboard(): Promise<Dashboard> {
       daysWaiting: r.days_waiting,
     })),
     revenue: {
-      exclVatCents: d.revenue.excl_vat_cents,
-      inclVatCents: d.revenue.incl_vat_cents,
+      netCents: d.revenue.net_cents,
       jobsCount: d.revenue.jobs_count,
       monthStart: d.revenue.month_start,
       monthEnd: d.revenue.month_end,

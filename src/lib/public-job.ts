@@ -10,24 +10,27 @@ import type { JobStatus } from "@/lib/status";
  */
 export interface PublicJob {
   garage: { name: string; address: string; phone: string };
-  job: { ref: string; status: JobStatus };
+  /** quote_version: the version shown; Approve/Decline send it back as expected_version (D-049). */
+  job: { ref: string; status: JobStatus; quote_version: number | null };
   vehicle: { make: string; model: string; plate: string };
   customer: { first_name: string };
+  /** The current quote version's snapshot. line_total_cents is exact (may be fractional, D-048). */
   lines: { description: string; quantity: string; unit_price_cents: number; line_total_cents: number }[];
-  /** null while the job is back in `new` (quote being revised). */
+  /** Net (subtotal), VAT and total of the current quote version; null before the first quote. */
   totals: { subtotal_cents: number; vat_cents: number; total_cents: number; vat_bps: number } | null;
-  timeline: { status: JobStatus; at: string }[];
+  /** channel: "phone" = approval recorded by the garage, "link" = the customer's own decision. */
+  timeline: { status: JobStatus; at: string; channel: "link" | "phone" | null }[];
 }
 
 export const PUBLIC_JOB_KEYS = {
   root: ["garage", "job", "vehicle", "customer", "lines", "totals", "timeline"],
   garage: ["name", "address", "phone"],
-  job: ["ref", "status"],
+  job: ["ref", "status", "quote_version"],
   vehicle: ["make", "model", "plate"],
   customer: ["first_name"],
   line: ["description", "quantity", "unit_price_cents", "line_total_cents"],
   totals: ["subtotal_cents", "vat_cents", "total_cents", "vat_bps"],
-  timeline: ["status", "at"],
+  timeline: ["status", "at", "channel"],
 } as const;
 
 type Obj = Record<string, unknown>;
@@ -50,7 +53,7 @@ export function toPublicJob(raw: unknown): PublicJob {
   } as unknown as PublicJob;
 }
 
-/** Looks up a job by raw token. Unknown, revoked, expired or malformed → null (caller renders 404). */
+/** Looks up a job by raw token. Unknown, revoked or malformed → null (caller renders 404). Links never expire (D-053). */
 export async function getPublicJob(token: string): Promise<PublicJob | null> {
   const admin = createAdminClient();
   const { data, error } = await admin.rpc("public_job_by_token_hash", { p_token_hash: hashLinkToken(token) });

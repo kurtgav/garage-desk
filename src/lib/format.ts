@@ -1,54 +1,65 @@
-// Display helpers. Times are stored in UTC and shown in the garage timezone (PRD §7).
+// Display helpers. Times are stored in UTC and shown in the garage timezone (PRD §7, D-055).
 
-export const GARAGE_TZ = "Asia/Manila";
+export const GARAGE_TZ = "Europe/Sofia";
 
-const dateTimeFmt = new Intl.DateTimeFormat("en-PH", {
+const dateTimeFmt = new Intl.DateTimeFormat("en-GB", {
   timeZone: GARAGE_TZ,
   day: "numeric",
   month: "short",
   year: "numeric",
-  hour: "numeric",
+  hour: "2-digit",
   minute: "2-digit",
+  hourCycle: "h23",
 });
-const dateFmt = new Intl.DateTimeFormat("en-PH", {
+const dateFmt = new Intl.DateTimeFormat("en-GB", {
   timeZone: GARAGE_TZ,
   day: "numeric",
   month: "short",
   year: "numeric",
 });
 
+/** "2 Nov 2026, 14:05" in Europe/Sofia. */
 export function formatDateTime(iso: string | null | undefined): string {
   return iso ? dateTimeFmt.format(new Date(iso)) : "—";
 }
 
+/** "2 Nov 2026" in Europe/Sofia. */
 export function formatDate(iso: string | null | undefined): string {
   return iso ? dateFmt.format(new Date(iso)) : "—";
 }
 
-/** Stored plates are normalised ("ABC1234"); show "ABC 1234". */
+/** Stored plates are normalised ("CA4521KM"); show the Bulgarian layout "CA 4521 KM". */
 export function formatPlate(plate: string): string {
+  const bg = /^([A-Z]{1,2})(\d{4})([A-Z]{1,2})$/.exec(plate);
+  if (bg) return `${bg[1]} ${bg[2]} ${bg[3]}`;
   const m = /^([A-Z]+)(\d+)$/.exec(plate) ?? /^(\d+)([A-Z]+)$/.exec(plate);
   return m ? `${m[1]} ${m[2]}` : plate;
 }
 
 /** Same normalisation as the DB trigger, for search input. */
+// shortcut: Cyrillic look-alike letters (С, А, В…) are not mapped to Latin; add the mapping here and in the DB trigger if staff type plates on a Bulgarian keyboard.
 export function normalisePlate(input: string): string {
   return input.toUpperCase().replace(/[\s-]/g, "");
 }
 
+/** Digits only; a Bulgarian national number "0881234567" becomes "359881234567" (D-055). */
 export function normalisePhone(input: string): string {
-  return input.replace(/\D/g, "");
+  const digits = input.replace(/\D/g, "");
+  return /^0\d{9}$/.test(digits) ? `359${digits.slice(1)}` : digits;
 }
 
-/** Stored phones are digits only; PH mobile "09171234567" → "0917 123 4567". */
+/** "359881234567" → "+359 88 123 4567"; Sofia landline "35929876543" → "+359 2 987 6543". */
 export function formatPhone(digits: string): string {
-  const m = /^(09\d{2})(\d{3})(\d{4})$/.exec(digits);
-  return m ? `${m[1]} ${m[2]} ${m[3]}` : digits;
+  const mobile = /^359(8\d|9\d)(\d{3})(\d{4})$/.exec(digits);
+  if (mobile) return `+359 ${mobile[1]} ${mobile[2]} ${mobile[3]}`;
+  const sofia = /^3592(\d{3})(\d{4})$/.exec(digits);
+  if (sofia) return `+359 2 ${sofia[1]} ${sofia[2]}`;
+  return digits.startsWith("359") ? `+${digits}` : digits;
 }
 
-/** wa.me link; PH mobile 09… becomes 639…, anything else opens the contact picker. */
+/** wa.me link for a Bulgarian mobile; anything else opens the contact picker. */
 export function whatsappUrl(phoneDigits: string | null | undefined, text: string): string {
-  const d = phoneDigits ?? "";
-  const intl = /^09\d{9}$/.test(d) ? `63${d.slice(1)}` : /^639\d{9}$/.test(d) ? d : "";
+  const d = normalisePhone(phoneDigits ?? "");
+  const intl = /^359[89]\d{8}$/.test(d) ? d : "";
   return `https://wa.me/${intl}?text=${encodeURIComponent(text)}`;
 }

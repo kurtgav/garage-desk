@@ -12,81 +12,81 @@ import {
 
 describe("plates", () => {
   it.each([
-    ["ABC1234", "ABC 1234"],
-    ["NAB4521", "NAB 4521"],
-    ["1234ABC", "1234 ABC"],
+    ["CA4521KM", "CA 4521 KM"],
+    ["C1234AB", "C 1234 AB"],
+    ["PB7310TX", "PB 7310 TX"],
+    ["ABC1234", "ABC 1234"], // foreign plate, letters + digits
     ["AB12C", "AB12C"], // unknown shape stays as stored
   ])("formatPlate(%j) → %j", (stored, shown) => {
     expect(formatPlate(stored)).toBe(shown);
   });
 
   it.each([
-    ["abc 1234", "ABC1234"],
-    ["abc-1234", "ABC1234"],
-    [" nab 4521 ", "NAB4521"],
-    ["ABC1234", "ABC1234"],
+    ["ca 4521 km", "CA4521KM"],
+    ["CA-4521-KM", "CA4521KM"],
+    [" ca4521km ", "CA4521KM"],
   ])("normalisePlate(%j) → %j", (input, normalised) => {
     expect(normalisePlate(input)).toBe(normalised);
   });
 });
 
-describe("phones", () => {
+describe("phones (Bulgaria)", () => {
   it.each([
-    ["+63 917-123-4567", "639171234567"],
-    ["0917 123 4567", "09171234567"],
-    ["(02) 8123-4567", "0281234567"],
+    ["+359 88 123 4567", "359881234567"],
+    ["0881 234 567", "359881234567"],
+    ["088-123-4567", "359881234567"],
   ])("normalisePhone(%j) → %j", (input, digits) => {
     expect(normalisePhone(input)).toBe(digits);
   });
 
+  it("keeps non-national numbers as plain digits", () => {
+    expect(normalisePhone("(02) 987 6543")).toBe("029876543");
+    expect(normalisePhone("+44 20 7946 0958")).toBe("442079460958");
+  });
+
   it.each([
-    ["09171234567", "0917 123 4567"],
-    ["639171234567", "639171234567"],
-    ["0281234567", "0281234567"],
+    ["359881234567", "+359 88 123 4567"],
+    ["359987654321", "+359 98 765 4321"],
+    ["35929876543", "+359 2 987 6543"],
+    ["3593212345", "+3593212345"],
+    ["442079460958", "442079460958"],
   ])("formatPhone(%j) → %j", (digits, shown) => {
     expect(formatPhone(digits)).toBe(shown);
   });
 
-  it("whatsappUrl converts PH mobile 09… to 639…", () => {
-    expect(whatsappUrl("09171234567", "Hi there")).toBe("https://wa.me/639171234567?text=Hi%20there");
+  it("whatsappUrl uses the international mobile number", () => {
+    expect(whatsappUrl("359881234567", "Hi there")).toBe("https://wa.me/359881234567?text=Hi%20there");
+    expect(whatsappUrl("0881234567", "x")).toBe("https://wa.me/359881234567?text=x");
   });
 
-  it("whatsappUrl keeps an already international PH mobile", () => {
-    expect(whatsappUrl("639171234567", "x")).toBe("https://wa.me/639171234567?text=x");
-  });
-
-  it("whatsappUrl falls back to the contact picker for missing or non-mobile numbers", () => {
+  it("whatsappUrl falls back to the contact picker for missing or landline numbers", () => {
     expect(whatsappUrl(null, "x")).toBe("https://wa.me/?text=x");
     expect(whatsappUrl(undefined, "x")).toBe("https://wa.me/?text=x");
-    expect(whatsappUrl("0281234567", "x")).toBe("https://wa.me/?text=x");
+    expect(whatsappUrl("35929876543", "x")).toBe("https://wa.me/?text=x");
   });
 
   it("whatsappUrl encodes the message text", () => {
-    expect(whatsappUrl("09171234567", "Quote & link: https://g.d/abc?x=1")).toBe(
-      "https://wa.me/639171234567?text=Quote%20%26%20link%3A%20https%3A%2F%2Fg.d%2Fabc%3Fx%3D1",
+    expect(whatsappUrl("359881234567", "Quote & link: https://g.d/abc?x=1")).toBe(
+      "https://wa.me/359881234567?text=Quote%20%26%20link%3A%20https%3A%2F%2Fg.d%2Fabc%3Fx%3D1",
     );
   });
 });
 
-describe("dates in the garage timezone (Asia/Manila, UTC+8)", () => {
-  it("uses Asia/Manila", () => {
-    expect(GARAGE_TZ).toBe("Asia/Manila");
+describe("dates in the garage timezone (Europe/Sofia, UTC+2 in winter, UTC+3 in summer)", () => {
+  it("uses Europe/Sofia", () => {
+    expect(GARAGE_TZ).toBe("Europe/Sofia");
   });
 
-  it("formatDateTime: 2026-11-01T16:30:00Z → 2 Nov 2026, 12:30 AM local", () => {
-    const s = formatDateTime("2026-11-01T16:30:00Z");
-    expect(s).toMatch(/\b2\b/);
-    expect(s).toMatch(/Nov/);
-    expect(s).toMatch(/2026/);
-    expect(s).toMatch(/12:30\s*AM/i);
-    expect(s).not.toMatch(/\b1\b/); // not the UTC date
+  it("formatDateTime: 2026-11-01T22:30:00Z → 2 Nov 2026, 00:30 local (EET)", () => {
+    expect(formatDateTime("2026-11-01T22:30:00Z")).toBe("2 Nov 2026, 00:30");
   });
 
-  it("formatDate: 2026-10-31T16:30:00Z is already 1 Nov in Manila", () => {
-    const s = formatDate("2026-10-31T16:30:00Z");
-    expect(s).toMatch(/\b1\b/);
-    expect(s).toMatch(/Nov/);
-    expect(s).not.toMatch(/31|Oct/);
+  it("formatDateTime: summer time 2026-07-15T21:15:00Z → 16 Jul 2026, 00:15 local (EEST)", () => {
+    expect(formatDateTime("2026-07-15T21:15:00Z")).toBe("16 Jul 2026, 00:15");
+  });
+
+  it("formatDate: 2026-10-31T22:30:00Z is already 1 Nov in Sofia", () => {
+    expect(formatDate("2026-10-31T22:30:00Z")).toBe("1 Nov 2026");
   });
 
   it("renders a dash for missing values", () => {

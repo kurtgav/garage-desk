@@ -2,7 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { customerErrorMessage, GENERIC_ERROR, INVALID_LINK, QUOTE_CHANGED, TOO_MANY_ATTEMPTS } from "@/lib/data/errors";
+import { getStaff } from "@/lib/auth";
+import {
+  customerErrorMessage,
+  GENERIC_ERROR,
+  INVALID_LINK,
+  QUOTE_CHANGED,
+  STAFF_ON_CUSTOMER_LINK,
+  TOO_MANY_ATTEMPTS,
+} from "@/lib/data/errors";
 import type { ActionResult } from "@/lib/data/types";
 import { isRateLimited } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -20,14 +28,18 @@ const reasonSchema = z
   .max(500, "Keep the reason to 500 characters or fewer.")
   .optional();
 
-/** The quoted total (cents) the page showed; up to 15 digits stays a safe integer. */
-const expectedTotalSchema = z.string().regex(/^\d{1,15}$/).transform(Number);
+/** The quote version the page showed (hidden input). The DB acts only if it is still current (D-049). */
+const versionSchema = z.string().regex(/^[1-9]\d{0,8}$/).transform(Number);
 
 async function customerTransition(
   formData: FormData,
-  to: "approved" | "new",
-  extra: { p_note?: string; p_expected_total_cents?: number },
+  to: "approved" | "declined",
+  note: string | null,
 ): Promise<ActionResult> {
+  // Staff must not decide as the customer (D-067); the owner records phone approvals instead.
+  if (await getStaff()) return { ok: false, error: STAFF_ON_CUSTOMER_LINK };
+  const version = versionSchema.safeParse(formData.get("expected_version"));
+  if (!version.success) return { ok: false, error: QUOTE_CHANGED };
   if (await isRateLimited("publicAction")) return { ok: false, error: TOO_MANY_ATTEMPTS };
   const token = formData.get("token");
   if (typeof token !== "string" || !TOKEN_RE.test(token)) return { ok: false, error: INVALID_LINK };
@@ -43,12 +55,13 @@ async function customerTransition(
   if (linkError) return { ok: false, error: GENERIC_ERROR };
   if (!link) return { ok: false, error: INVALID_LINK };
 
-  // transition_job re-checks the hash, link state and 30-day expiry in the same transaction; replays are no-ops.
+  // transition_job re-checks the hash, the link and the version in the same transaction; replays are no-ops.
   const { error } = await admin.rpc("transition_job", {
     p_job_id: link.job_id,
     p_to_status: to,
     p_link_token_hash: hash,
-    ...extra,
+    p_expected_version: version.data,
+    ...(note ? { p_note: note } : {}),
   });
   if (error) return { ok: false, error: customerErrorMessage(error) };
 
@@ -57,14 +70,11 @@ async function customerTransition(
 }
 
 export async function approveQuote(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
-  // The DB approves only if this still equals the frozen quote total (D-037).
-  const expected = expectedTotalSchema.safeParse(formData.get("expected_total_cents"));
-  if (!expected.success) return { ok: false, error: QUOTE_CHANGED };
-  return customerTransition(formData, "approved", { p_expected_total_cents: expected.data });
+  return customerTransition(formData, "approved", null);
 }
 
 export async function declineQuote(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
   const reason = reasonSchema.safeParse(formData.get("reason") ?? undefined);
   if (!reason.success) return { ok: false, error: reason.error.issues[0]?.message ?? GENERIC_ERROR };
-  return customerTransition(formData, "new", reason.data ? { p_note: reason.data } : {});
+  return customerTransition(formData, "declined", reason.data || null);
 }

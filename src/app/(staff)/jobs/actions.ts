@@ -7,22 +7,14 @@ import { z } from "zod";
 import { requireStaff } from "@/lib/auth";
 import { staffErrorMessage } from "@/lib/data/errors";
 import type { ActionResult } from "@/lib/data/types";
-import { parsePesoToCents, parseQuantity } from "@/lib/money";
+import { fail, optionalText, parseForm as parse } from "@/lib/form";
+import { parseMoneyToCents, parseQuantity } from "@/lib/money";
 import { JOB_STATUSES } from "@/lib/status";
 import { createClient } from "@/lib/supabase/server";
 import { generateLinkToken, hashLinkToken } from "@/lib/tokens";
 
 // Every action re-checks auth here; the DB (RLS, triggers, transition_job) is the real guard.
 // requireStaff() redirects to /login when the session is gone.
-
-type Fail = { ok: false; error: string };
-const fail = (error: string): Fail => ({ ok: false, error });
-
-/** First zod issue message, or the parsed data. */
-function parse<T extends z.ZodType>(schema: T, formData: FormData): { data: z.infer<T> } | Fail {
-  const res = schema.safeParse(Object.fromEntries(formData));
-  return res.success ? { data: res.data } : fail(res.error.issues[0]?.message ?? "Check the form and try again.");
-}
 
 const id = (what: string) => z.guid(`Choose a ${what}.`);
 const jobIdField = z.guid("This job could not be found.");
@@ -32,13 +24,20 @@ const text = (max: number) =>
     .string("Enter a description.")
     .trim()
     .min(1, "Enter a description.")
-    .max(max, `Keep the description to ${max.toLocaleString("en-PH")} characters or fewer.`);
+    .max(max, `Keep the description to ${max.toLocaleString("en-IE")} characters or fewer.`);
 const description = text(500);
 const quantityField = z.string("Enter a quantity.");
 const unitPriceField = z.string().optional();
+const noteField = optionalText(500, "Keep the note to 500 characters or fewer.");
+const requiredNote = (message: string) =>
+  z.string(message).trim().min(1, message).max(500, "Keep the note to 500 characters or fewer.");
+const versionField = z.coerce
+  .number("This quote could not be found. Refresh the page.")
+  .int("This quote could not be found. Refresh the page.")
+  .positive("This quote could not be found. Refresh the page.");
 
 const QUANTITY_ERROR = "Enter a quantity greater than 0, with up to 2 decimals (e.g. 1.5).";
-const PRICE_ERROR = "Enter a valid unit price in pesos (e.g. 1250.50).";
+const PRICE_ERROR = "Enter a valid unit price in euros, excluding VAT (e.g. 45.50).";
 
 function revalidateJob(jobId: string) {
   revalidatePath(`/jobs/${jobId}`);
@@ -48,23 +47,48 @@ function revalidateJob(jobId: string) {
 
 const createJobSchema = z.object({
   vehicle_id: id("vehicle"),
-  assigned_mechanic_id: id("mechanic"),
+  assigned_mechanic_id: id("mechanic").optional(),
   description: text(2000),
 });
 
+/** Mechanics: the job is always theirs; the DB forces it too (D-054). */
 export async function createJob(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
   const staff = await requireStaff();
-  if (staff.role !== "owner") return fail("Only the owner can create jobs.");
   const input = parse(createJobSchema, formData);
   if ("ok" in input) return input;
+  const assigned = staff.role === "mechanic" ? staff.id : input.data.assigned_mechanic_id;
+  if (!assigned) return fail("Choose a mechanic.");
 
   const db = await createClient();
-  const { data, error } = await db.from("jobs").insert(input.data).select("id").single();
+  const { data, error } = await db
+    .from("jobs")
+    .insert({ vehicle_id: input.data.vehicle_id, assigned_mechanic_id: assigned, description: input.data.description })
+    .select("id")
+    .single();
   if (error) return fail(staffErrorMessage(error, "Could not create the job. Check the vehicle and mechanic and try again."));
 
   revalidatePath("/jobs");
   revalidatePath("/dashboard");
   redirect(`/jobs/${data.id}`); // throws NEXT_REDIRECT; no try/catch around it
+}
+
+const reassignSchema = z.object({ job_id: jobIdField, assigned_mechanic_id: id("mechanic") });
+
+/** Owner only (D-054). */
+export async function reassignJob(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+  const staff = await requireStaff();
+  if (staff.role !== "owner") return fail(staffErrorMessage({ message: "forbidden" }));
+  const input = parse(reassignSchema, formData);
+  if ("ok" in input) return input;
+  const { job_id, assigned_mechanic_id } = input.data;
+
+  const db = await createClient();
+  const { data, error } = await db.from("jobs").update({ assigned_mechanic_id }).eq("id", job_id).select("id");
+  if (error) return fail(staffErrorMessage(error, "Could not reassign the job. Please try again."));
+  if (data.length === 0) return fail(staffErrorMessage({ message: "not_found" }));
+
+  revalidateJob(job_id);
+  return { ok: true };
 }
 
 const addLineSchema = z.object({
@@ -75,6 +99,7 @@ const addLineSchema = z.object({
   unit_price: unitPriceField,
 });
 
+/** On a quoted/approved/in-progress job the DB re-quotes as a new version (D-050). */
 export async function addLine(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
   await requireStaff();
   const input = parse(addLineSchema, formData);
@@ -86,7 +111,7 @@ export async function addLine(_prev: ActionResult | null, formData: FormData): P
   // Labour: the DB trigger copies the hourly rate from settings (D-031); the client value is ignored.
   let unitPriceCents = 0;
   if (kind === "part") {
-    const cents = parsePesoToCents(input.data.unit_price ?? "");
+    const cents = parseMoneyToCents(input.data.unit_price ?? "");
     if (cents === null) return fail(PRICE_ERROR);
     unitPriceCents = cents;
   }
@@ -124,7 +149,7 @@ export async function updateLine(_prev: ActionResult | null, formData: FormData)
   if (!quantity) return fail(QUANTITY_ERROR);
   let unitPriceCents: number | undefined;
   if (input.data.unit_price !== undefined) {
-    const cents = parsePesoToCents(input.data.unit_price);
+    const cents = parseMoneyToCents(input.data.unit_price);
     if (cents === null) return fail(PRICE_ERROR);
     unitPriceCents = cents;
   }
@@ -173,9 +198,10 @@ export async function deleteLine(_prev: ActionResult | null, formData: FormData)
 const transitionSchema = z.object({
   job_id: jobIdField,
   to_status: z.enum(JOB_STATUSES, "Choose a valid status."),
-  note: z.string().trim().max(500, "Keep the note to 500 characters or fewer.").optional(),
+  note: noteField,
 });
 
+/** Send quote / re-quote / start / ready / rework / collected / cancel (owner, note required). */
 export async function transitionJob(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
   await requireStaff();
   const input = parse(transitionSchema, formData);
@@ -189,6 +215,33 @@ export async function transitionJob(_prev: ActionResult | null, formData: FormDa
     ...(note ? { p_note: note } : {}),
   });
   if (error) return fail(staffErrorMessage(error, "Could not change the status. Please try again."));
+
+  revalidateJob(job_id);
+  return { ok: true };
+}
+
+const phoneApprovalSchema = z.object({
+  job_id: jobIdField,
+  expected_version: versionField,
+  note: requiredNote("Add a note about the phone call (who approved, when)."),
+});
+
+/** Owner only, note required, for the version the owner saw (D-051). */
+export async function recordPhoneApproval(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+  const staff = await requireStaff();
+  if (staff.role !== "owner") return fail(staffErrorMessage({ message: "forbidden" }));
+  const input = parse(phoneApprovalSchema, formData);
+  if ("ok" in input) return input;
+  const { job_id, expected_version, note } = input.data;
+
+  const db = await createClient();
+  const { error } = await db.rpc("transition_job", {
+    p_job_id: job_id,
+    p_to_status: "approved",
+    p_note: note,
+    p_expected_version: expected_version,
+  });
+  if (error) return fail(staffErrorMessage(error, "Could not record the approval. Please try again."));
 
   revalidateJob(job_id);
   return { ok: true };
