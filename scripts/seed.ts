@@ -21,7 +21,8 @@ function writePrivate(path: string, content: string): void {
 }
 
 type Status = Database["public"]["Enums"]["job_status"];
-type EventInsert = Database["public"]["Tables"]["job_events"]["Insert"];
+// actor_name is always set by the job_events_actor_name trigger (D-091), never by the caller.
+type EventInsert = Omit<Database["public"]["Tables"]["job_events"]["Insert"], "actor_name">;
 const args = process.argv.slice(2);
 const local = args.includes("--local");
 
@@ -75,6 +76,50 @@ const sofiaNow = new Date(now + sofiaOffset(now));
 const monthGuess = Date.UTC(sofiaNow.getUTCFullYear(), sofiaNow.getUTCMonth(), 1);
 const monthStart = monthGuess - sofiaOffset(monthGuess); // DST never changes on the 1st at midnight
 const iso = (t: number) => new Date(t).toISOString();
+
+// Demo times fall in workshop hours (audit L4): weekdays 08:00–18:30 Sofia. Step gaps count working hours.
+type SofiaDay = { y: number; m: number; d: number; weekday: number };
+function sofiaDay(t: number): SofiaDay {
+  const local = new Date(t + sofiaOffset(t));
+  return { y: local.getUTCFullYear(), m: local.getUTCMonth(), d: local.getUTCDate(), weekday: local.getUTCDay() };
+}
+/** The instant of hh:mm Sofia time on `day` (DST never switches at 08:00 or 18:30). */
+function sofiaAt(day: SofiaDay, h: number, min: number): number {
+  const guess = Date.UTC(day.y, day.m, day.d, h, min);
+  return guess - sofiaOffset(guess);
+}
+const opens = (day: SofiaDay) => sofiaAt(day, 8, 0);
+const closes = (day: SofiaDay) => sofiaAt(day, 18, 30);
+const isWorkday = (day: SofiaDay) => day.weekday >= 1 && day.weekday <= 5;
+
+/** The latest working instant at or before t. */
+function workingBefore(t: number): number {
+  for (;;) {
+    const day = sofiaDay(t);
+    if (isWorkday(day) && t >= opens(day)) return Math.min(t, closes(day));
+    t = sofiaAt(day, 0, 0) - 1; // last moment of the previous day
+  }
+}
+/** t moved back by `ms` of working time (nights and weekends skipped). */
+function workBack(t: number, ms: number): number {
+  t = workingBefore(t);
+  for (;;) {
+    const open = opens(sofiaDay(t));
+    if (t - ms >= open) return t - ms;
+    ms -= t - open;
+    t = workingBefore(open - 1);
+  }
+}
+/** Working time between a and b (a ≤ b). */
+function workingMs(a: number, b: number): number {
+  let total = 0;
+  for (let t = workingBefore(b); t > a; ) {
+    const open = Math.max(opens(sofiaDay(t)), a);
+    total += t - open;
+    t = workingBefore(opens(sofiaDay(t)) - 1);
+  }
+  return total;
+}
 
 // ---------- demo data ----------
 const GARAGE = {
@@ -151,8 +196,13 @@ const ready = (gap = 6): Step => ({ to: "ready", gap });
 const collect = (gap = 20): Step => ({ to: "collected", gap });
 const HAPPY = [quote(), approve(), start(), ready()];
 
-// Collected-this-month times spread between month start and now (works on the 1st too).
-const inThisMonth = (i: number, of: number) => monthStart + ((now - monthStart) * (i + 1)) / (of + 1);
+// Collected-this-month times spread over this month's working time so far. shortcut: when the month has had
+// no working time yet (the 1st before 08:00, or a weekend start) they fall back to plain time, outside hours.
+const monthWorkingMs = workingMs(monthStart, now);
+const inThisMonth = (i: number, of: number) =>
+  monthWorkingMs > 0
+    ? workBack(now, (monthWorkingMs * (of - i)) / (of + 1))
+    : monthStart + ((now - monthStart) * (i + 1)) / (of + 1);
 
 const JOBS: JobSpec[] = [
   // Collected last month at the OLD rate (€40.00/h): outside this month's revenue.
@@ -274,8 +324,16 @@ interface Figures {
  * service role edit lines and no re-quote trigger fires), then sets the final state once.
  */
 async function createJob(spec: JobSpec, vehicleId: string, ownerId: string, mechanicId: string, links: string[]) {
-  const gaps = spec.steps.reduce((sum, s) => sum + s.gap * HOUR, 0);
-  const createdAt = spec.lastAt - gaps - 2 * HOUR; // inspection before the first quote
+  // Step times counted back from the last one in working hours; this month's revenue never moves to last month.
+  const keepsRevenue = spec.steps.at(-1)?.to === "collected" && spec.lastAt >= monthStart;
+  const last = keepsRevenue && workingBefore(spec.lastAt) < monthStart ? spec.lastAt : workingBefore(spec.lastAt);
+  const stepAt: number[] = [];
+  let back = last;
+  for (let i = spec.steps.length - 1; i >= 0; i--) {
+    stepAt[i] = back;
+    back = workBack(back, spec.steps[i].gap * HOUR);
+  }
+  const createdAt = workBack(back, 2 * HOUR); // inspection before the first quote
   const job = must(
     await db
       .from("jobs")
@@ -293,10 +351,9 @@ async function createJob(spec: JobSpec, vehicleId: string, ownerId: string, mech
   let approved = null as Figures | null;
   let collectedAt: number | null = null;
   let link: { token: string; hash: string } | null = null;
-  let t = spec.lastAt - gaps;
 
-  for (const step of spec.steps) {
-    t += step.gap * HOUR;
+  for (const [i, step] of spec.steps.entries()) {
+    const t = stepAt[i];
     const from = status;
     let detail: Partial<EventInsert>;
 
@@ -337,11 +394,11 @@ async function createJob(spec: JobSpec, vehicleId: string, ownerId: string, mech
     status = step.to;
   }
 
-  if (events.length) ok(await db.from("job_events").insert(events), "insert events");
+  if (events.length) ok(await db.from("job_events").insert(events.map((e) => ({ ...e, actor_name: "" }))), "insert events");
   if (quotes.length) ok(await db.from("job_quotes").insert(quotes), "insert quotes");
   if (link) {
     const firstQuote = quotes[0].created_at!;
-    ok(await db.from("job_links").insert({ job_id: job.id, token_hash: link.hash, created_by: mechanicId, created_at: iso(Date.parse(firstQuote) + 10 * 60_000) }), "insert link");
+    ok(await db.from("job_links").insert({ job_id: job.id, token_hash: link.hash, created_by: mechanicId, created_at: iso(workingBefore(Date.parse(firstQuote) + 10 * 60_000)) }), "insert link");
     if (spec.demoLink) links.push(`${status.padEnd(11)} ${siteUrl}/${link.token}`);
   }
   if (status === "new") return;
