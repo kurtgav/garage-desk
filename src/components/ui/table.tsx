@@ -12,7 +12,8 @@ type TableProps = React.ComponentProps<"table"> & {
 export function Table({ className, label, ...props }: TableProps) {
   const region = label ? { role: "region", "aria-label": label, tabIndex: 0 } : {};
   return (
-    <div className="w-full overflow-x-auto" {...region}>
+    // `relative` keeps sr-only (absolute) captions and labels inside the scroll frame, or they widen the page.
+    <div className="relative w-full overflow-x-auto" {...region}>
       <table className={cn("w-full caption-bottom border-collapse text-sm tabular-nums", className)} {...props} />
     </div>
   );
