@@ -1,26 +1,125 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * Garage Desk design tokens. Light theme only.
+ * Calm workshop tool: warm neutral surfaces, one deep teal accent, colour on status and actions.
+ *
+ * WCAG 2.x contrast, checked for every text pair (AA needs 4.5:1):
+ *   ink/surface 17.4 · ink/ground 15.9 · muted/surface 7.1 · muted/ground 6.5 · muted/raised 6.1
+ *   faint (placeholders)/surface 5.6 · faint/ground 5.2 · accent text/surface 8.4
+ *   white/accent 8.4 · white/accent-hover 10.8 · white/danger 6.6 · danger/surface 6.6 · danger/danger-soft 5.7
+ *   status badges (text/fill): new 8.3 · quoted 6.9 · approved 8.6 · in progress 8.1 · ready 7.8 · collected 7.1
+ *   alerts (text/fill): success 8.0 · warning 7.1 · info 8.4
+ * Non-text (1.4.11, needs 3:1): control border/surface 3.4 · focus ring/ground 7.7
+ */
+@theme {
+  /* Surfaces */
+  --color-ground: #f6f5f2; /* page */
+  --color-surface: #ffffff; /* cards, inputs, top bar */
+  --color-raised: #f0eee9; /* hover and active fills */
+  --color-line: #e4e1db; /* card and panel edges */
+  --color-rule: #eeece7; /* table row rules */
+  --color-control: #8f8a82; /* input borders */
+
+  /* Text */
+  --color-ink: #1c1a17;
+  --color-muted: #5c5851;
+  --color-faint: #6b6760; /* placeholders, meta */
+
+  /* The one accent: primary actions, focus, links */
+  --color-accent: #0f5752;
+  --color-accent-hover: #0b4541;
+  --color-accent-soft: #e3f0ee;
+  --color-on-accent: #ffffff;
+
+  /* Feedback */
+  --color-success: #14532d;
+  --color-success-soft: #e3f4e8;
+  --color-warning: #7a4505;
+  --color-warning-soft: #fdf3dd;
+  --color-danger: #b42318;
+  --color-danger-hover: #8f1c13;
+  --color-danger-soft: #fcebea;
+
+  /* Job status badges (text on fill), always shown with their label */
+  --color-status-new: #47423b;
+  --color-status-new-bg: #ecebe6;
+  --color-status-quoted: #7a4505;
+  --color-status-quoted-bg: #fcefd4;
+  --color-status-approved: #1d3e78;
+  --color-status-approved-bg: #e2eaf8;
+  --color-status-in-progress: #0d4c48;
+  --color-status-in-progress-bg: #d9eeec;
+  --color-status-ready: #14532d;
+  --color-status-ready-bg: #dcf2e3;
+  --color-status-collected: #5c5851; /* hollow badge: surface fill + line border */
+
+  /* Motion: feedback only (dialogs, presses). Exits are softer than enters. */
+  --animate-fade-in: fade-in 150ms cubic-bezier(0.2, 0, 0, 1);
+  --animate-fade-out: fade-out 100ms ease-out;
+  --animate-pop-in: pop-in 150ms cubic-bezier(0.2, 0, 0, 1);
+  --animate-pop-out: pop-out 100ms ease-out;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+  }
+  @keyframes pop-out {
+    to {
+      opacity: 0;
+      transform: scale(0.98);
+    }
+  }
 }
 
+/* next/font sets these variables on <html> (self-hosted Geist, CSP font-src 'self'). */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  body {
+    background-color: var(--color-ground);
+    color: var(--color-ink);
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background-color: var(--color-accent-soft);
+    color: var(--color-ink);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
