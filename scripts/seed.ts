@@ -198,7 +198,7 @@ const JOBS: JobSpec[] = [
 ];
 
 // ---------- run ----------
-async function upsertStaff(): Promise<Map<string, string>> {
+async function upsertStaff(): Promise<{ ids: Map<string, string>; existing: Map<string, string> }> {
   const ids = new Map<string, string>();
   const existing = new Map<string, string>();
   for (let page = 1; ; page++) {
@@ -221,15 +221,21 @@ async function upsertStaff(): Promise<Map<string, string>> {
     ok(await db.from("profiles").upsert({ id, full_name: s.fullName, role: s.role, active: true }), `profile ${s.email}`);
     ids.set(s.envKey, id);
   }
-  // Remove leftover test accounts (e2e/integration runs) on the demo domain.
+  return { ids, existing };
+}
+
+/** After the wipe (jobs reference profiles): remove test accounts on the demo domains (e2e/integration runs). */
+async function removeTestAccounts(existing: Map<string, string>): Promise<number> {
   const roster = new Set(SEED_STAFF.map((s) => s.email));
+  let removed = 0;
   for (const [email, id] of existing) {
-    if (email.endsWith("@garagedesk.test") && !roster.has(email)) {
-      await db.from("profiles").delete().eq("id", id);
-      await db.auth.admin.deleteUser(id);
-    }
+    if (!/@(e2e.)?garagedesk.test$/.test(email) || roster.has(email)) continue;
+    ok(await db.from("profiles").delete().eq("id", id), `remove profile ${email}`);
+    const { error } = await db.auth.admin.deleteUser(id);
+    if (error) throw new Error(`remove user ${email}: ${error.message}`);
+    removed++;
   }
-  return ids;
+  return removed;
 }
 
 async function wipe() {
@@ -363,11 +369,13 @@ async function createJob(spec: JobSpec, vehicleId: string, ownerId: string, mech
 }
 
 async function main() {
-  const staff = await upsertStaff();
+  const { ids: staff, existing } = await upsertStaff();
   const ownerId = staff.get("SEED_OWNER_PASSWORD")!;
   const mechanicIds = [1, 2, 3].map((n) => staff.get(`SEED_MECHANIC_${n}_PASSWORD`)!);
 
   await wipe();
+  const removed = await removeTestAccounts(existing);
+  if (removed) console.log(`seed: removed ${removed} test account(s)`);
   await setRate(OLD_RATE);
 
   const vehicleIds = new Map<string, string>();
