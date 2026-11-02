@@ -68,6 +68,12 @@ export function parseMoneyToCents(input: string): number | null {
   return cents <= MAX_INT4 ? cents : null;
 }
 
+/** Integer cents → plain input value that parseMoneyToCents reads back: 4500 → "45.00", 5 → "0.05". */
+export function centsToInput(cents: number): string {
+  const s = String(cents).padStart(3, "0");
+  return `${s.slice(0, -2)}.${s.slice(-2)}`;
+}
+
 /** "1.5" | "1,5" → "1.50" (string, sent as-is to numeric(10,2)). Must be > 0. */
 export function parseQuantity(input: string): string | null {
   const m = /^(\d{1,8})(?:[.,](\d{1,2}))?$/.exec(input.trim());

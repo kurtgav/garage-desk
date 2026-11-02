@@ -7,6 +7,8 @@ export type StaffRole = "owner" | "mechanic";
 export interface Staff {
   id: string;
   fullName: string;
+  /** Sign-in email (shell user card). */
+  email: string;
   role: StaffRole;
 }
 
@@ -23,7 +25,7 @@ export const getStaff = cache(async (): Promise<Staff | null> => {
     .eq("id", user.id)
     .maybeSingle();
   if (!data || !data.active) return null;
-  return { id: data.id, fullName: data.full_name, role: data.role as StaffRole };
+  return { id: data.id, fullName: data.full_name, email: user.email ?? "", role: data.role as StaffRole };
 });
 
 export async function requireStaff(): Promise<Staff> {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bpsToPercentString,
+  centsToInput,
   formatCents,
   formatQuantity,
   formatLineAmount,
@@ -56,6 +57,18 @@ describe("formatLineAmount (exact, D-048)", () => {
 
   it.each([null, undefined, "abc", "1e21"])("%j → dash", (v) => {
     expect(formatLineAmount(v as never)).toBe("—");
+  });
+});
+
+describe("centsToInput", () => {
+  it.each([
+    [4500, "45.00"],
+    [5, "0.05"],
+    [0, "0.00"],
+    [123456, "1234.56"],
+  ])("centsToInput(%j) → %j and parses back", (cents, input) => {
+    expect(centsToInput(cents)).toBe(input);
+    expect(parseMoneyToCents(input)).toBe(cents);
   });
 });
 

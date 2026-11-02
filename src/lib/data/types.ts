@@ -127,6 +127,15 @@ export interface Dashboard {
   workload: { mechanicId: string; mechanicName: string; totalOpen: number; byStatus: Partial<Record<JobStatus, number>> }[];
 }
 
+/** FR9. Changes apply to labour lines added and jobs created afterwards (FR4 snapshots). */
+export interface GarageSettings {
+  garageName: string;
+  garageAddress: string;
+  garagePhone: string;
+  hourlyRateCents: number; // excl. VAT
+  vatBps: number; // 2000 = 20%
+}
+
 /*
  * Data functions ("server-only", RLS client):
  *   src/lib/data/jobs.ts
@@ -139,6 +148,9 @@ export interface Dashboard {
  *     getCustomer(id: string): Promise<CustomerDetail | null>
  *   src/lib/data/dashboard.ts
  *     getDashboard(): Promise<Dashboard>                                 // owner only (DB raises otherwise)
+ *   src/lib/data/settings.ts
+ *     getSettings(): Promise<GarageSettings>                             // owner only (mechanics get the 404)
+ *     updateSettings(values: GarageSettings): Promise<ActionResult>      // RLS settings_update + column grant guard it
  *
  * Staff server actions ("use server"; re-check auth, zod, map DB errors to sentences, revalidatePath):
  *   src/app/(staff)/jobs/actions.ts
