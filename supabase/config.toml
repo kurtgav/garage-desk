@@ -246,7 +246,7 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
-# Password recovery: token_hash link to our /auth/confirm route (D-077). Remote: same template via the Management API.
+# Password recovery: token_hash link to our /auth/confirm route (D-079). Remote: same template via the Management API.
 [auth.email.template.recovery]
 subject = "Reset your Garage Desk password"
 content_path = "./supabase/templates/recovery.html"
