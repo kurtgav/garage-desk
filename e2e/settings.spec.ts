@@ -1,8 +1,8 @@
 // FR9 + FR4 rate rule through the UI: the owner changes the hourly rate; a labour line already on a job keeps
 // its price, a labour line added afterwards uses the new rate. The settings row is global, so the original
 // values are restored at the end.
-import { expect, test } from "@playwright/test";
-import { admin, createCustomerWithVehicle, createJob, must, OWNER_STATE, readUsers, tag } from "./support";
+import { expect, test, type Page } from "@playwright/test";
+import { admin, createCustomerWithVehicle, createJob, must, OWNER_STATE, readUsers, tag, withLock } from "./support";
 
 test.use({ storageState: OWNER_STATE });
 
@@ -17,6 +17,11 @@ const centsToInput = (cents: number) => {
 test("FR9: a new hourly rate applies to new labour lines only", async ({ page }, testInfo) => {
   // shortcut: one global settings row; the two projects running this in parallel would race, so desktop only.
   test.skip(testInfo.project.name !== "desktop", "settings is a global singleton");
+  // Overlapping runs on this machine take turns, or one would restore the other's changed rate (D-096).
+  await withLock("settings", () => rateRule(page));
+});
+
+async function rateRule(page: Page) {
   const db = admin();
   const original = must(await db.from("settings").select(SETTINGS_COLUMNS).eq("id", 1).single(), "settings");
   const t = tag();
@@ -55,4 +60,4 @@ test("FR9: a new hourly rate applies to new labour lines only", async ({ page },
   } finally {
     must(await db.from("settings").update(original).eq("id", 1).select("id"), "restore settings");
   }
-});
+}

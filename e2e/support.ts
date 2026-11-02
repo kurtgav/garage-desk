@@ -1,7 +1,7 @@
 // Shared e2e helpers. Specs create their own data (unique suffix) so they stay independent and can run
 // against production via E2E_BASE_URL. Never log key, password or token values.
 import { createHash, randomBytes, randomInt } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
@@ -10,9 +10,16 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 export const AUTH_DIR = path.join(root, "e2e", ".auth"); // gitignored (/e2e/.auth/)
-export const OWNER_STATE = path.join(AUTH_DIR, "owner.json");
-export const MECHANIC_STATE = path.join(AUTH_DIR, "mechanic.json");
-export const USERS_PATH = path.join(AUTH_DIR, "users.json"); // ids and names only, no passwords
+/**
+ * One id per Playwright run, set in playwright.config.ts and inherited by global setup and the workers. Each run
+ * has its own staff accounts and auth files, so overlapping runs never re-key, overwrite or deactivate each
+ * other's (D-096).
+ */
+export const RUN_ID = process.env.E2E_RUN_ID ?? "manual";
+export const RUN_DIR = path.join(AUTH_DIR, RUN_ID);
+export const OWNER_STATE = path.join(RUN_DIR, "owner.json");
+export const MECHANIC_STATE = path.join(RUN_DIR, "mechanic.json");
+export const USERS_PATH = path.join(RUN_DIR, "users.json"); // ids and names only, no passwords
 
 /** The server under test is this machine (no E2E_BASE_URL, or localhost). */
 export const isLocal = !process.env.E2E_BASE_URL || /\/\/(localhost|127\.0\.0\.1)[:/]/.test(process.env.E2E_BASE_URL);
@@ -216,11 +223,15 @@ export interface Throwaway extends E2EUser {
 }
 
 /**
- * A staff account for flows that change passwords, ban or deactivate (never the shared e2e users, whose
- * storageState other specs reuse). Remove it with deleteStaff() in afterAll.
+ * A staff account for flows that change passwords, ban or deactivate (never the run's e2e users, whose
+ * storageState other specs reuse). Remove it with deleteStaff() in afterAll. Global setup uses it for the run's
+ * own accounts too (with their email).
  */
-export async function createThrowawayStaff(role: "owner" | "mechanic", fullName: string): Promise<Throwaway> {
-  const email = `tmp-${tag()}@e2e.garagedesk.test`;
+export async function createThrowawayStaff(
+  role: "owner" | "mechanic",
+  fullName: string,
+  email = `tmp-${tag()}@e2e.garagedesk.test`,
+): Promise<Throwaway> {
   const password = strongPassword();
   const { data, error } = await admin().auth.admin.createUser({ email, password, email_confirm: true });
   if (error || !data.user) throw new Error(`create throwaway ${role} failed: ${error?.message ?? "no user"}`);
@@ -231,25 +242,74 @@ export async function createThrowawayStaff(role: "owner" | "mechanic", fullName:
   return { id: data.user.id, email, fullName, password };
 }
 
-/** Auth user id for an email created through the UI (e.g. "Add mechanic"), or undefined. */
-export async function authUserId(email: string): Promise<string | undefined> {
+/** Every Auth user (paged). */
+export async function listAuthUsers(): Promise<{ id: string; email?: string; created_at: string }[]> {
+  const users = [];
   for (let page = 1; ; page++) {
     const res = await admin().auth.admin.listUsers({ page, perPage: 1000 });
     if (res.error) throw new Error(`listUsers failed: ${res.error.message}`);
-    const hit = res.data.users.find((u) => u.email === email);
-    if (hit) return hit.id;
-    if (res.data.users.length < 1000) return undefined;
+    users.push(...res.data.users);
+    if (res.data.users.length < 1000) return users;
   }
 }
 
-/** Deletes throwaway accounts (the profile cascades) and their photos. Accounts with jobs cannot be deleted. */
+/** Auth user id for an email created through the UI (e.g. "Add mechanic"), or undefined. */
+export async function authUserId(email: string): Promise<string | undefined> {
+  return (await listAuthUsers()).find((u) => u.email === email)?.id;
+}
+
+/** Deletes throwaway accounts (the profile cascades) and their photos. Accounts with jobs: deleteStaffAndJobs. */
 export async function deleteStaff(ids: string[]): Promise<void> {
   const avatars = admin().storage.from("avatars");
   for (const id of ids) {
     const files = (await avatars.list(id)).data ?? [];
     if (files.length > 0) await avatars.remove(files.map((f) => `${id}/${f.name}`));
     const { error } = await admin().auth.admin.deleteUser(id);
-    if (error) throw new Error(`delete throwaway ${id} failed: ${error.message}`);
+    // 404: already gone (e.g. a reseed removed it), which is the goal.
+    if (error && error.status !== 404) throw new Error(`delete throwaway ${id} failed: ${error.message}`);
+  }
+}
+
+/**
+ * Deletes e2e accounts together with the jobs they created or are assigned (lines, events, quotes and links
+ * cascade; jobs reference profiles with ON DELETE RESTRICT). Only for e2e accounts: their jobs are test data.
+ */
+export async function deleteStaffAndJobs(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  for (const column of ["created_by", "assigned_mechanic_id"]) {
+    const { error } = await admin().from("jobs").delete().in(column, ids);
+    if (error) throw new Error(`delete e2e jobs by ${column} failed: ${error.message}`);
+  }
+  await deleteStaff(ids);
+}
+
+/**
+ * Cross-run mutex (overlapping runs on this machine) for tests that change a global row, e.g. the settings
+ * singleton. A lock older than `staleMs` belongs to a crashed run and is taken over.
+ */
+export async function withLock<T>(name: string, fn: () => Promise<T>, staleMs = 120_000): Promise<T> {
+  const file = path.join(AUTH_DIR, `${name}.lock`);
+  mkdirSync(AUTH_DIR, { recursive: true });
+  const deadline = Date.now() + staleMs + 30_000;
+  for (;;) {
+    try {
+      closeSync(openSync(file, "wx"));
+      break;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+      if (Date.now() > deadline) throw new Error(`lock ${name} still busy`);
+      try {
+        if (Date.now() - statSync(file).mtimeMs > staleMs) rmSync(file, { force: true });
+      } catch {
+        // gone meanwhile: retry
+      }
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    rmSync(file, { force: true });
   }
 }
 

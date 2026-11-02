@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Gitignored e2e session state and local scratch files.
+    "e2e/.auth/**",
+    "test-results/**",
+    "playwright-report/**",
   ]),
 ]);
 

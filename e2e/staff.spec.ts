@@ -4,8 +4,11 @@ import { expect, test, type Browser, type Page, type TestInfo } from "@playwrigh
 import {
   admin,
   authUserId,
+  createCustomerWithVehicle,
+  createJob,
   createThrowawayStaff,
   deleteStaff,
+  deleteStaffAndJobs,
   expectSignInRefused,
   freshContext,
   must,
@@ -19,6 +22,8 @@ test.use({ storageState: OWNER_STATE });
 
 const created: string[] = [];
 test.afterAll(async () => deleteStaff(created.splice(0)));
+const withJobs: string[] = [];
+test.afterAll(async () => deleteStaffAndJobs(withJobs.splice(0)));
 
 /** Reads the one-time password from the dialog that produced it, then closes the dialog (D-084). */
 async function takeTempPassword(page: Page): Promise<string> {
@@ -126,4 +131,33 @@ test("the owner's own row offers no deactivate or reset", async ({ page }) => {
   await expect(page.getByRole("button", { name: `Reset password for ${owner.fullName}` })).toHaveCount(0);
   // Control: other rows do have actions.
   await expect(page.getByRole("button", { name: `Reset password for ${readUsers().mechanic.fullName}` })).toBeVisible();
+});
+
+test("a deactivated mechanic's open jobs stay on the dashboard and one click from reassigning (D-092, D-095)", async ({ page }) => {
+  const mech = await createThrowawayStaff("mechanic", `Rhea Reassign ${tag()}`);
+  withJobs.push(mech.id);
+  const { vehicle } = await createCustomerWithVehicle({ fullName: `Reassign Probe ${tag()}` });
+  await createJob({ vehicleId: vehicle.id, mechanicId: mech.id, description: "Left behind" });
+  const theirJobs = new RegExp(`/jobs\\?mechanic=${mech.id}$`);
+
+  await page.goto("/staff");
+  await page.getByRole("button", { name: `Deactivate ${mech.fullName}` }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toHaveAccessibleDescription(/1 open job stays assigned to them\. Reassign it from the Jobs list\.$/);
+  await expect(dialog.getByRole("link", { name: "Jobs list" })).toHaveAttribute("href", theirJobs);
+  await dialog.getByRole("button", { name: "Deactivate" }).click();
+  await expect(page.getByRole("button", { name: `Reactivate ${mech.fullName}` })).toBeVisible();
+
+  // The name's ", <mechanic>" part is screen-reader only (sr-only), which accname joins with a space.
+  await page.getByRole("link", { name: new RegExp(`^1 open job · Reassign ?, ${mech.fullName}$`) }).click();
+  await expect(page).toHaveURL(theirJobs);
+  await expect(page.getByTestId("jobs-count")).toHaveText("1 open job");
+  await expect(page.getByRole("link", { name: `Remove filter Mechanic: ${mech.fullName}` })).toBeVisible();
+
+  await page.goto("/dashboard");
+  const card = page.getByTestId("workload-card").filter({ has: page.getByRole("link", { name: new RegExp(`^${mech.fullName}`) }) });
+  await expect(card.getByText("Inactive · reassign")).toBeVisible();
+  await expect(card.getByTestId("workload-open")).toHaveText("1");
+  await card.click();
+  await expect(page).toHaveURL(theirJobs);
 });
