@@ -7,6 +7,7 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { getStaff, requireOwner } from "@/lib/auth";
 import type { StaffMember } from "@/lib/data/types";
 import { listStaff } from "@/lib/data/staff";
+import { jobsHref } from "../jobs/filters";
 import { AddMechanic, StaffRowActions } from "./staff-forms";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -77,7 +78,7 @@ export default async function StaffPage() {
                 <TableCell>
                   <StatusPill active={s.active} />
                 </TableCell>
-                <TableCell className="text-right">{s.openJobs}</TableCell>
+                <TableCell className="text-right">{needsReassign(s) ? <ReassignLink member={s} /> : s.openJobs}</TableCell>
                 <TableCell className="text-right whitespace-nowrap">
                   {s.id === me.id ? (
                     <Link href="/profile" className="text-sm text-muted underline decoration-subtle underline-offset-4 hover:text-ink">
@@ -108,7 +109,7 @@ export default async function StaffPage() {
                   <Badge tone={s.role === "owner" ? "accent" : "neutral"}>{ROLE_LABEL[s.role]}</Badge>
                   <StatusPill active={s.active} />
                   <span className="text-sm text-muted">
-                    {s.openJobs} open {s.openJobs === 1 ? "job" : "jobs"}
+                    {needsReassign(s) ? <ReassignLink member={s} /> : openJobs(s.openJobs)}
                   </span>
                 </div>
               </div>
@@ -118,6 +119,23 @@ export default async function StaffPage() {
         ))}
       </ul>
     </>
+  );
+}
+
+const openJobs = (n: number) => `${n} open ${n === 1 ? "job" : "jobs"}`;
+
+/** Deactivated, but jobs are still assigned to them: nobody works on those until the owner reassigns them (D-092). */
+const needsReassign = (s: StaffMember) => !s.active && s.openJobs > 0;
+
+function ReassignLink({ member }: { member: StaffMember }) {
+  return (
+    <Link
+      href={jobsHref({ mechanicId: member.id })}
+      className="whitespace-nowrap text-danger underline decoration-current/30 underline-offset-4 transition-[text-decoration-color] duration-150 hover:decoration-current"
+    >
+      {openJobs(member.openJobs)} · Reassign
+      <span className="sr-only">, {member.fullName}</span>
+    </Link>
   );
 }
 

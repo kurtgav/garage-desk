@@ -17,7 +17,13 @@ interface DashboardJson {
     days_waiting: number;
   }[];
   revenue: { net_cents: number; jobs_count: number; month_start: string; month_end: string };
-  workload: { mechanic_id: string; mechanic_name: string; total_open: number; by_status: Partial<Record<JobStatus, number>> }[];
+  workload: {
+    mechanic_id: string;
+    mechanic_name: string;
+    active: boolean;
+    total_open: number;
+    by_status: Partial<Record<JobStatus, number>>;
+  }[];
 }
 
 /** Owner only (D-020: mechanics get the 404; the DB raises `forbidden` too). */
@@ -47,6 +53,7 @@ export async function getDashboard(): Promise<Dashboard> {
     workload: d.workload.map((w) => ({
       mechanicId: w.mechanic_id,
       mechanicName: w.mechanic_name,
+      active: w.active,
       totalOpen: w.total_open,
       byStatus: w.by_status,
     })),

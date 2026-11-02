@@ -375,6 +375,8 @@ function MechanicCard({
   })).filter((p) => p.count > 0);
   const inProgress = row.byStatus.in_progress ?? 0;
   const mechanicId = row.mechanicId;
+  // Deactivated but still holding open jobs (D-092): the card exists so the owner reassigns them.
+  const inactive = !row.active;
   return (
     <li
       data-testid="workload-card"
@@ -384,10 +386,10 @@ function MechanicCard({
         <span
           className={cn(
             "absolute top-2.5 right-2.5 rounded-full bg-surface px-2 py-0.5 text-[13px]",
-            inProgress > 0 ? "text-status-in-progress" : "text-muted",
+            inactive ? "text-danger" : inProgress > 0 ? "text-status-in-progress" : "text-muted",
           )}
         >
-          {inProgress > 0 ? "Working" : "Free"}
+          {inactive ? "Inactive · reassign" : inProgress > 0 ? "Working" : "Free"}
         </span>
         <p className="text-[32px] leading-10 font-medium tracking-tight text-ink tabular-nums">
           <span data-testid="workload-open">{row.totalOpen}</span>
@@ -418,7 +420,7 @@ function MechanicCard({
             className={cn(STRETCHED, "min-w-0 truncate after:rounded-2xl group-hover:underline")}
           >
             {row.mechanicName}
-            <span className="sr-only"> — view open jobs</span>
+            <span className="sr-only">{inactive ? " (inactive) — reassign open jobs" : " — view open jobs"}</span>
           </Link>
           <ArrowUpRight
             aria-hidden

@@ -124,7 +124,17 @@ export interface Dashboard {
   readyJobs: { id: string; ref: string; customerName: string; plate: string; totalCents: number; readySince: string; daysWaiting: number }[];
   /** Net (excl. VAT) of jobs marked collected this month, Europe/Sofia (D-056). */
   revenue: { netCents: number; jobsCount: number; monthStart: string; monthEnd: string };
-  workload: { mechanicId: string; mechanicName: string; totalOpen: number; byStatus: Partial<Record<JobStatus, number>> }[];
+  /**
+   * Active mechanics, plus deactivated ones who still hold open jobs (`active: false`, D-092), so the
+   * totals always add up to the open-job count.
+   */
+  workload: {
+    mechanicId: string;
+    mechanicName: string;
+    active: boolean;
+    totalOpen: number;
+    byStatus: Partial<Record<JobStatus, number>>;
+  }[];
 }
 
 /** FR9. Changes apply to labour lines added and jobs created afterwards (FR4 snapshots). */

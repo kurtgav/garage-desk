@@ -1,6 +1,7 @@
 "use client";
 
 import { KeyRound, Plus, UserCheck, UserX } from "lucide-react";
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { CopyButton } from "@/components/copy-button";
 import { submitRequired } from "@/components/form-submit";
@@ -19,6 +20,7 @@ import {
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import type { ActionResult, TempPassword } from "@/lib/data/types";
+import { jobsHref } from "../jobs/filters";
 import { createStaff, resetStaffPassword, setStaffActive } from "./actions";
 
 type TempResult = ActionResult<TempPassword> | null;
@@ -188,7 +190,7 @@ function ToggleActive({ member }: { member: Member }) {
     return result;
   }, null);
   const deactivate = member.active;
-  const jobs = member.openJobs === 1 ? "1 open job stays" : `${member.openJobs} open jobs stay`;
+  const one = member.openJobs === 1;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -211,10 +213,28 @@ function ToggleActive({ member }: { member: Member }) {
             <DialogTitle>
               {deactivate ? "Deactivate" : "Reactivate"} {member.fullName}?
             </DialogTitle>
-            <DialogDescription>
-              {deactivate
-                ? `They are signed out everywhere at once and can't sign in until you reactivate them. Their job history is kept${member.openJobs > 0 ? `; ${jobs} assigned to them, so reassign it from the job page` : ""}.`
-                : "They can sign in again with their current password. Their job history is unchanged."}
+            {/* asChild: both paragraphs are the dialog's description, so the open-jobs warning is announced too. */}
+            <DialogDescription asChild>
+              <div className="grid gap-2">
+                <p>
+                  {deactivate
+                    ? "They are signed out everywhere at once and can't sign in until you reactivate them. Their job history is kept."
+                    : "They can sign in again with their current password. Their job history is unchanged."}
+                </p>
+                {deactivate && member.openJobs > 0 && (
+                  <p className="text-ink">
+                    {member.openJobs} open {one ? "job stays" : "jobs stay"} assigned to them. Reassign {one ? "it" : "them"}{" "}
+                    from the{" "}
+                    <Link
+                      href={jobsHref({ mechanicId: member.id })}
+                      className="font-medium underline decoration-subtle underline-offset-4 hover:decoration-ink"
+                    >
+                      Jobs list
+                    </Link>
+                    .
+                  </p>
+                )}
+              </div>
             </DialogDescription>
           </DialogHeader>
           {state && !state.ok && !pending && <Alert tone="danger">{state.error}</Alert>}

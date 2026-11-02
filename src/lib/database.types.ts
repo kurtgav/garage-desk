@@ -21,14 +21,14 @@ export type Database = {
                   ]
                 },"job_events": {
                   Row: {
-                    "actor_id": string | null,"actor_type": Database["public"]['Enums']["actor_type"],"channel": Database["public"]['Enums']["approval_channel"] | null,"created_at": string,"from_status": Database["public"]['Enums']["job_status"] | null,"id": number,"job_id": string,"note": string | null,"quote_version": number | null,"to_status": Database["public"]['Enums']["job_status"],"total_cents": number | null
+                    "actor_id": string | null,"actor_name": string,"actor_type": Database["public"]['Enums']["actor_type"],"channel": Database["public"]['Enums']["approval_channel"] | null,"created_at": string,"from_status": Database["public"]['Enums']["job_status"] | null,"id": number,"job_id": string,"note": string | null,"quote_version": number | null,"to_status": Database["public"]['Enums']["job_status"],"total_cents": number | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "actor_id"?: string | null,"actor_type": Database["public"]['Enums']["actor_type"],"channel"?: Database["public"]['Enums']["approval_channel"] | null,"created_at"?: string,"from_status"?: Database["public"]['Enums']["job_status"] | null,"id"?: never,"job_id": string,"note"?: string | null,"quote_version"?: number | null,"to_status": Database["public"]['Enums']["job_status"],"total_cents"?: number | null
+                    "actor_id"?: string | null,"actor_name": string,"actor_type": Database["public"]['Enums']["actor_type"],"channel"?: Database["public"]['Enums']["approval_channel"] | null,"created_at"?: string,"from_status"?: Database["public"]['Enums']["job_status"] | null,"id"?: never,"job_id": string,"note"?: string | null,"quote_version"?: number | null,"to_status": Database["public"]['Enums']["job_status"],"total_cents"?: number | null
                   }
                   Update: {
-                    "actor_id"?: string | null,"actor_type"?: Database["public"]['Enums']["actor_type"],"channel"?: Database["public"]['Enums']["approval_channel"] | null,"created_at"?: string,"from_status"?: Database["public"]['Enums']["job_status"] | null,"id"?: never,"job_id"?: string,"note"?: string | null,"quote_version"?: number | null,"to_status"?: Database["public"]['Enums']["job_status"],"total_cents"?: number | null
+                    "actor_id"?: string | null,"actor_name"?: string,"actor_type"?: Database["public"]['Enums']["actor_type"],"channel"?: Database["public"]['Enums']["approval_channel"] | null,"created_at"?: string,"from_status"?: Database["public"]['Enums']["job_status"] | null,"id"?: never,"job_id"?: string,"note"?: string | null,"quote_version"?: number | null,"to_status"?: Database["public"]['Enums']["job_status"],"total_cents"?: number | null
                   }
                   Relationships: [
                     {
@@ -264,7 +264,7 @@ isOneToOne: false
 { Args: { "p_now"?: string }; Returns: Json
                            },
 "public_job_by_token_hash":
-{ Args: { "p_token_hash": string }; Returns: Json
+{ Args: { "p_count_view"?: boolean,"p_token_hash": string }; Returns: Json
                            },
 "rate_limit_hit":
 { Args: { "p_key": string,"p_max": number,"p_window_seconds": number }; Returns: boolean

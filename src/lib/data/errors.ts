@@ -26,6 +26,10 @@ export function staffErrorMessage(error: { message?: string; code?: string } | n
   return fallback;
 }
 
+/** profiles_full_name_unique (D-091): nobody can pose as a colleague on the timeline. */
+export const NAME_TAKEN = "Another staff member already uses that name.";
+export const PG_UNIQUE_VIOLATION = "23505";
+
 export const INVALID_LINK = "This link is no longer valid.";
 export const TOO_MANY_ATTEMPTS = "Too many attempts. Please wait a minute and try again.";
 // The customer page refreshes itself after a failed decision (quote-actions.tsx), so these never ask for a refresh.
