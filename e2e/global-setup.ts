@@ -4,7 +4,7 @@
 import { randomBytes } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { chromium, type FullConfig } from "@playwright/test";
-import { admin, AUTH_DIR, MECHANIC_STATE, must, OWNER_STATE, USERS_PATH, type E2EUser, type E2EUsers } from "./support";
+import { admin, AUTH_DIR, authUserId, MECHANIC_STATE, must, OWNER_STATE, USERS_PATH, type E2EUser, type E2EUsers } from "./support";
 
 const ACCOUNTS = {
   owner: { email: "owner@e2e.garagedesk.test", fullName: "E2E Owner Oscar", role: "owner" },
@@ -15,22 +15,12 @@ const ACCOUNTS = {
 // Strong, generated per run, kept in memory only (never written to disk or logged).
 const newPassword = () => `${randomBytes(18).toString("base64url")}aA1!`;
 
-async function findUserId(email: string): Promise<string | undefined> {
-  for (let page = 1; ; page++) {
-    const { data, error } = await admin().auth.admin.listUsers({ page, perPage: 1000 });
-    if (error) throw new Error(`listUsers failed: ${error.message}`);
-    const hit = data.users.find((u) => u.email === email);
-    if (hit) return hit.id;
-    if (data.users.length < 1000) return undefined;
-  }
-}
-
-/** Fixed accounts, re-keyed each run: jobs keep FKs to these profiles, so they are never deleted. */
+/** Fixed accounts, re-keyed (and un-banned, D-077) each run: jobs keep FKs to these profiles, so they are never deleted. */
 async function upsertStaff(account: (typeof ACCOUNTS)[keyof typeof ACCOUNTS], password: string): Promise<E2EUser> {
   const auth = admin().auth.admin;
-  const existing = await findUserId(account.email);
+  const existing = await authUserId(account.email);
   const { data, error } = existing
-    ? await auth.updateUserById(existing, { password, email_confirm: true })
+    ? await auth.updateUserById(existing, { password, email_confirm: true, ban_duration: "none" })
     : await auth.createUser({ email: account.email, password, email_confirm: true });
   if (error || !data.user) throw new Error(`upsert auth user ${account.email} failed: ${error?.message ?? "no user"}`);
   const id = data.user.id;

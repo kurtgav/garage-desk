@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
-import type { Browser } from "@playwright/test";
+import { expect, type Browser, type Page, type TestInfo } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -14,7 +14,8 @@ export const OWNER_STATE = path.join(AUTH_DIR, "owner.json");
 export const MECHANIC_STATE = path.join(AUTH_DIR, "mechanic.json");
 export const USERS_PATH = path.join(AUTH_DIR, "users.json"); // ids and names only, no passwords
 
-const isLocal = !process.env.E2E_BASE_URL || /\/\/(localhost|127\.0\.0\.1)[:/]/.test(process.env.E2E_BASE_URL);
+/** The server under test is this machine (no E2E_BASE_URL, or localhost). */
+export const isLocal = !process.env.E2E_BASE_URL || /\/\/(localhost|127\.0\.0\.1)[:/]/.test(process.env.E2E_BASE_URL);
 
 /** Real env wins; against a local server fall back to the local stack keys in .env.development.local. */
 function env(name: string): string {
@@ -96,6 +97,20 @@ export function customerContext(browser: Browser, baseURL: string | undefined) {
     viewport: { width: 375, height: 812 },
     isMobile: true,
     hasTouch: true,
+    extraHTTPHeaders: { "x-forwarded-for": randomIp() },
+  });
+}
+/** A signed-out context sized like the running project (desktop or 375px), with its own client IP (see above). */
+export function freshContext(browser: Browser, testInfo: TestInfo, baseURL: string | undefined) {
+  const { viewport, isMobile, hasTouch, deviceScaleFactor, userAgent } = testInfo.project.use;
+  return browser.newContext({
+    baseURL,
+    viewport,
+    isMobile,
+    hasTouch,
+    deviceScaleFactor,
+    userAgent,
+    storageState: { cookies: [], origins: [] },
     extraHTTPHeaders: { "x-forwarded-for": randomIp() },
   });
 }
@@ -191,4 +206,82 @@ export async function ownerCreateLink(jobId: string): Promise<string> {
 
 export async function jobRow(jobId: string) {
   return must(await admin().from("jobs").select("*").eq("id", jobId).single(), "select job");
+}
+
+/** Meets the Auth rules (12+ chars, upper, lower, digit). Generated per use, kept in memory, never logged. */
+export const strongPassword = (): string => `${randomBytes(18).toString("base64url")}aA1`;
+
+export interface Throwaway extends E2EUser {
+  password: string;
+}
+
+/**
+ * A staff account for flows that change passwords, ban or deactivate (never the shared e2e users, whose
+ * storageState other specs reuse). Remove it with deleteStaff() in afterAll.
+ */
+export async function createThrowawayStaff(role: "owner" | "mechanic", fullName: string): Promise<Throwaway> {
+  const email = `tmp-${tag()}@e2e.garagedesk.test`;
+  const password = strongPassword();
+  const { data, error } = await admin().auth.admin.createUser({ email, password, email_confirm: true });
+  if (error || !data.user) throw new Error(`create throwaway ${role} failed: ${error?.message ?? "no user"}`);
+  must(
+    await admin().from("profiles").insert({ id: data.user.id, full_name: fullName, role, active: true }).select("id").single(),
+    "insert throwaway profile",
+  );
+  return { id: data.user.id, email, fullName, password };
+}
+
+/** Auth user id for an email created through the UI (e.g. "Add mechanic"), or undefined. */
+export async function authUserId(email: string): Promise<string | undefined> {
+  for (let page = 1; ; page++) {
+    const res = await admin().auth.admin.listUsers({ page, perPage: 1000 });
+    if (res.error) throw new Error(`listUsers failed: ${res.error.message}`);
+    const hit = res.data.users.find((u) => u.email === email);
+    if (hit) return hit.id;
+    if (res.data.users.length < 1000) return undefined;
+  }
+}
+
+/** Deletes throwaway accounts (the profile cascades) and their photos. Accounts with jobs cannot be deleted. */
+export async function deleteStaff(ids: string[]): Promise<void> {
+  const avatars = admin().storage.from("avatars");
+  for (const id of ids) {
+    const files = (await avatars.list(id)).data ?? [];
+    if (files.length > 0) await avatars.remove(files.map((f) => `${id}/${f.name}`));
+    const { error } = await admin().auth.admin.deleteUser(id);
+    if (error) throw new Error(`delete throwaway ${id} failed: ${error.message}`);
+  }
+}
+
+async function submitLogin(page: Page, email: string, password: string): Promise<void> {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+}
+
+/** Signs in through the real /login form and waits to leave it (role home). */
+export async function signIn(page: Page, email: string, password: string): Promise<void> {
+  await submitLogin(page, email, password);
+  await expect(page).not.toHaveURL(/\/login$/, { timeout: 15_000 });
+}
+
+/** The login form refuses with its one generic message (wrong password, unknown or deactivated account). */
+export async function expectSignInRefused(page: Page, email: string, password: string): Promise<void> {
+  await submitLogin(page, email, password);
+  await expect(page.getByText("Email or password is incorrect.")).toBeVisible();
+  await expect(page).toHaveURL(/\/login$/);
+}
+
+/** The "Main" sidebar nav; below lg it lives in a drawer behind "Open menu" (retried until hydrated). */
+export async function openMainNav(page: Page) {
+  const nav = page.getByRole("navigation", { name: "Main" });
+  const menu = page.getByRole("button", { name: "Open menu" });
+  if (await menu.isVisible()) {
+    await expect(async () => {
+      await menu.click();
+      await expect(nav).toBeVisible({ timeout: 1_000 });
+    }).toPass();
+  }
+  return nav;
 }
