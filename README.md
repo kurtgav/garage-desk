@@ -9,7 +9,7 @@ Stack: Next.js 16 (App Router) and TypeScript, Supabase (Postgres and Auth), Tai
 | Doc | What is in it |
 |---|---|
 | [docs/PRD.md](docs/PRD.md) | The spec, including the client's answers (§12) |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Every non-obvious choice and why (D-001 to D-097) |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Every non-obvious choice and why (D-001 to D-108) |
 | [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md) | A screen-by-screen tour with screenshots of the live app |
 | [docs/user-guide/](docs/user-guide/guide.html) | Staff user guide; `node scripts/build-user-guide.mjs` builds the private `userguide.pdf` with the accounts (gitignored, D-097) |
 | [docs/NEXT-STEPS.md](docs/NEXT-STEPS.md) | What to do before and after real use |
@@ -210,9 +210,9 @@ The demo garage is "Petrov Auto Service": €45.00/h, 20% VAT, 10 customers, 15 
 
 - **Secrets stay out of the repo.** Only `.env.example` is committed. In the app, the service-role key is read in one module, `src/lib/supabase/admin.ts`, which starts with `import 'server-only'`. Never put it in a `NEXT_PUBLIC_*` variable.
 - **Secret scan on every commit and push.** `pnpm install` points git at `.githooks`. The pre-commit hook scans staged files, the pre-push hook scans all tracked files, and CI scans again. It blocks env files, `.vercel/`, `CREDENTIALS.local.md`, key patterns and any exact value from your local env files. After each CI build, `pnpm bundle:scan` checks the client bundle. (D-046)
-- **Schema changes only through migrations.** Add a new file to `supabase/migrations/` and apply it with `supabase db push`. Never edit a migration that has been applied. D-065 explains how migrations reach the remote project today.
-- **Production deploys.** Export the pushed commit with `git archive HEAD` into an empty folder (plus `.vercel/project.json`) and run `vercel deploy --prod --force` there as `kurtgav` (`--force` skips the build cache, D-089), so only committed files are uploaded and the deploy is not blocked by the commit-author check on the Hobby plan (D-073, D-075). Git deployments are off on the Vercel project.
+- **Schema changes only through migrations.** Add a new file to `supabase/migrations/` and apply it with `supabase db push`. Never edit a migration that has been applied. CI applies new migrations to production when `main` is pushed (D-105).
+- **Production deploys.** Every push to `main` deploys production through Vercel's Git integration, with the build cache off (`VERCEL_FORCE_NO_BUILD_CACHE`, D-089). On the Hobby plan only the Vercel owner may trigger Git deploys, so commits are authored as `kurtgav` (repo-local git config). The deploy does not wait for CI: run the local gate before pushing. If new code needs a new migration, get the migration to production first (D-105).
 - **Env vars live in Vercel.** `NEXT_PUBLIC_SITE_URL` must be the live URL, because customer links are built from it. Preview deployments fall back to the request's origin.
   - The `SEED_*_PASSWORD` values are in the Production env because the client asked for them there (`pnpm credentials:generate --push-vercel` puts them there). The app never reads them at runtime, but anyone with access to the Vercel project can. Remove them after onboarding, once every person has changed their password (NEXT-STEPS).
   - The Preview env no longer holds the service-role key, so a preview deployment has no admin access to production data. A separate Supabase project for previews is in NEXT-STEPS.
-- **CI.** GitHub Actions runs on every push to `main` and every pull request: secret scan, lint, typecheck and unit tests, then integration tests, build, bundle scan and e2e against a throwaway local Supabase stack, never production. (D-006)
+- **CI.** GitHub Actions runs on every push to `main` and every pull request: secret scan, lint, typecheck and unit tests, then integration tests, build, bundle scan and e2e against a throwaway local Supabase stack, never production (D-006). On a push to `main`, a separate `migrate` job applies new migrations to production with `supabase db push`, using the `SUPABASE_DB_URL` repository secret (D-105).

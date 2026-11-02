@@ -37,4 +37,5 @@ Source of truth: `docs/PRD.md`. Plan: `docs/PLAN.md`. Decisions: `docs/DECISIONS
 ## Workflow
 - Small conventional commits (`feat:`, `fix:`, `test:`, `docs:`, `chore:`, `ci:`), one logical change each.
 - Schema changes only as new files in `supabase/migrations/` (never edit an applied migration), pushed with `supabase db push`.
+- Commit as `kurtgav` (repo-local git config; Vercel Hobby only deploys the owner's commits). A push to `main` deploys production at once and CI's `migrate` job applies new migrations; neither waits for the tests, so run the local gate first. If new code needs a new migration, apply the migration to production before pushing the code (D-105).
 - Touch only Supabase project `ciqflsvaroxbrkjexjqx` and Vercel project `garage-desk` (scope `kurtgavs-projects`).
