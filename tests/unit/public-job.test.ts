@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { toPublicJob } from "@/lib/public-job";
+import { describe, expect, it, vi } from "vitest";
+import { countsAsCustomerView, getPublicJob, toPublicJob } from "@/lib/public-job";
 import { expectWhitelistedKeys } from "../support/public-job";
 
 const SECRET_UUID = "3f2b8c1e-9a7d-4e6f-8b5a-1c2d3e4f5a6b";
@@ -64,5 +64,43 @@ describe("FR6 AC3: toPublicJob keeps only whitelisted fields", () => {
     const dto = toPublicJob({ ...rawWithExtras, lines: { 0: "x" }, timeline: "nope" });
     expect(dto.lines).toEqual([]);
     expect(dto.timeline).toEqual([]);
+  });
+});
+
+// D-093: "last viewed" counts only the customer, never staff (auth cookie) or link-preview bots.
+const lookup = vi.hoisted(() => ({ rpc: vi.fn(async () => ({ data: null, error: null })), headers: new Headers() }));
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ rpc: lookup.rpc }) }));
+vi.mock("next/headers", () => ({ headers: async () => lookup.headers }));
+
+const SAFARI = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
+
+describe("countsAsCustomerView", () => {
+  it.each([
+    ["a customer's phone browser", SAFARI, null, true],
+    ["a customer with unrelated cookies", SAFARI, "theme=dark; _ga=1", true],
+    ["staff (Supabase auth cookie)", SAFARI, "sb-127-auth-token=base64-abc", false],
+    ["staff cookie after another cookie", SAFARI, "theme=dark; sb-xyz-auth-token.0=abc", false],
+    ["WhatsApp preview", "WhatsApp/2.23.20.0", null, false],
+    ["iMessage preview", "Mozilla/5.0 (Macintosh) AppleWebKit/601 facebookexternalhit/1.1 Facebot Twitterbot/1.0", null, false],
+    ["Viber preview", "Viber/21.0", null, false],
+    ["Telegram preview", "TelegramBot (like TwitterBot)", null, false],
+    ["Slack preview", "Slackbot-LinkExpanding 1.0", null, false],
+    ["Discord preview", "Mozilla/5.0 (compatible; Discordbot/2.0)", null, false],
+    ["LinkedIn preview", "LinkedInBot/1.0", null, false],
+    ["Skype preview", "Mozilla/5.0 SkypeUriPreview Preview/0.5", null, false],
+    ["Googlebot", "Mozilla/5.0 (compatible; Googlebot/2.1)", null, false],
+    ["bingbot", "Mozilla/5.0 (compatible; bingbot/2.0)", null, false],
+    ["no user agent", null, null, true],
+  ])("%s → %s", (_name, ua, cookie, expected) => {
+    expect(countsAsCustomerView(ua, cookie)).toBe(expected);
+  });
+
+  it("getPublicJob passes the decision to the lookup (response is the same either way)", async () => {
+    lookup.headers = new Headers({ "user-agent": "WhatsApp/2.23", cookie: "" });
+    await getPublicJob("A".repeat(43));
+    expect(lookup.rpc).toHaveBeenLastCalledWith("public_job_by_token_hash", expect.objectContaining({ p_count_view: false }));
+    lookup.headers = new Headers({ "user-agent": SAFARI });
+    await getPublicJob("A".repeat(43));
+    expect(lookup.rpc).toHaveBeenLastCalledWith("public_job_by_token_hash", expect.objectContaining({ p_count_view: true }));
   });
 });

@@ -1,4 +1,5 @@
 import "server-only";
+import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hashLinkToken } from "@/lib/tokens";
 import type { JobStatus } from "@/lib/status";
@@ -53,10 +54,26 @@ export function toPublicJob(raw: unknown): PublicJob {
   } as unknown as PublicJob;
 }
 
+// Link-preview and crawler fetchers (iMessage previews send "facebookexternalhit … Twitterbot").
+const PREVIEW_BOT =
+  /whatsapp|facebookexternalhit|facebot|viber|telegrambot|slackbot|twitterbot|discordbot|linkedinbot|skypeuripreview|imessage|applebot|googlebot|bingbot/i;
+
+/**
+ * "Last viewed" (job_links.last_viewed_at) is meant for the customer opening the link (D-093). Staff checking
+ * it (any Supabase auth cookie) and preview bots fetching it when the link is pasted into a chat do not count.
+ */
+export function countsAsCustomerView(userAgent: string | null, cookieHeader: string | null): boolean {
+  return !/(?:^|;\s*)sb-/.test(cookieHeader ?? "") && !PREVIEW_BOT.test(userAgent ?? "");
+}
+
 /** Looks up a job by raw token. Unknown, revoked or malformed → null (caller renders 404). Links never expire (D-053). */
 export async function getPublicJob(token: string): Promise<PublicJob | null> {
+  const h = await headers();
   const admin = createAdminClient();
-  const { data, error } = await admin.rpc("public_job_by_token_hash", { p_token_hash: hashLinkToken(token) });
+  const { data, error } = await admin.rpc("public_job_by_token_hash", {
+    p_token_hash: hashLinkToken(token),
+    p_count_view: countsAsCustomerView(h.get("user-agent"), h.get("cookie")),
+  });
   if (error || !data) return null;
   return toPublicJob(data);
 }

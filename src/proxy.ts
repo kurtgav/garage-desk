@@ -6,7 +6,9 @@ import { AUTH_COOKIE_OPTIONS } from "@/lib/supabase/cookie-options";
 
 const STAFF_PREFIXES = ["/jobs", "/customers", "/dashboard", "/settings", "/profile", "/staff"];
 // Public app routes (PLAN Phase 5): no sign-in needed and never looked up as a customer token.
-const PUBLIC_PATHS = ["/", "/login", "/forgot-password", "/reset-password", "/auth/confirm"];
+const PUBLIC_PATHS = ["/", "/login", "/forgot-password", "/reset-password", "/auth/confirm", "/robots.txt"];
+// generateLinkToken(): 32 random bytes, base64url → exactly 43 chars. Anything else can never be a link (D-093).
+const LINK_PATH = /^\/([A-Za-z0-9_-]{43})$/;
 // No route matches this, so Next serves the server-rendered /_not-found (status 404).
 const UNMATCHED_PATH = "/_/not-found";
 const isDev = process.env.NODE_ENV !== "production";
@@ -59,9 +61,10 @@ export async function proxy(request: NextRequest) {
   // FR6/D-019: an unknown, revoked or rate-limited link must get the same server-rendered 404 (body and
   // headers) as any unknown URL. notFound() in the page only yields Next's client-rendered error shell,
   // so decide before render: outside the app's routes only "/{token}" can exist, and only if the lookup
-  // finds it (same rate limit + lookup as the page). Server actions check the token themselves.
+  // finds it (same rate limit + lookup as the page). Server actions check the token themselves. A path that
+  // cannot be a token gets the same 404 before any DB write or lookup (bot noise like /wp-login.php).
   if (!isStaffPath && !PUBLIC_PATHS.includes(pathname) && !request.headers.has("next-action")) {
-    const token = /^\/([^/]+)$/.exec(pathname)?.[1];
+    const token = LINK_PATH.exec(pathname)?.[1];
     if (!token || (await isRateLimited("publicView")) || !(await getPublicJob(token))) {
       return forward(new URL(UNMATCHED_PATH, request.url));
     }
