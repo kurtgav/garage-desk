@@ -10,6 +10,7 @@ Stack: Next.js 16 (App Router) and TypeScript, Supabase (Postgres and Auth), Tai
 |---|---|
 | [docs/PRD.md](docs/PRD.md) | The spec, including the client's answers (§12) |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Every non-obvious choice and why (D-001 to D-075) |
+| [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md) | A screen-by-screen tour with screenshots of the live app |
 | [docs/NEXT-STEPS.md](docs/NEXT-STEPS.md) | What to do before and after real use |
 | [docs/PLAN.md](docs/PLAN.md), [docs/DESIGN.md](docs/DESIGN.md) | Build plan and design system |
 

@@ -63,3 +63,4 @@ These are deliberate. They are listed so nobody is surprised.
 - **Mechanics see the whole customer and vehicle directory**, so they find an existing car instead of creating a duplicate. Jobs stay per mechanic (D-054).
 - **The CSP allows inline styles** (`style-src 'unsafe-inline'`), because React injects them. No user HTML is ever rendered, so the remaining risk is CSS only (D-043).
 - **Supabase advisor warnings on `transition_job`, `create_job_link` and `revoke_job_link` are expected.** They are the only write path for status, links and quotes, and each checks the caller before it reads anything (D-064).
+- **No leaked-password check at sign-in.** Supabase offers the HaveIBeenPwned check only on the Pro plan (the advisor flags it). Sign-up is off, passwords need 12+ characters with lower, upper and digits, the seed passwords are random 20-character strings, and sign-in is rate-limited. Turn the check on if the project moves to Pro.
