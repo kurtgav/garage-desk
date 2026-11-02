@@ -60,3 +60,7 @@ supabase/.branches/
 /playwright/.auth/
 
 .vercel
+
+# User guide PDF embeds the demo staff passwords (built from CREDENTIALS.local.md); never commit it
+userguide.pdf
+userguide*.pdf

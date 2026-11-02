@@ -1,18 +1,19 @@
 # Garage Desk
 
-Garage Desk is the job book for a small car repair garage in Sofia (1 owner, 3 mechanics). It replaces paper and WhatsApp. Staff log jobs, add labour and parts, and send the customer a private link. The customer opens the link on their phone, reads the quote, and approves or declines it. The same link later shows the repair status. The owner gets a dashboard with workload and this month's revenue.
+Garage Desk is the job book for a small car repair garage in Sofia (1 owner, 3 mechanics). It replaces paper and WhatsApp. Staff log jobs, add labour and parts, and send the customer a private link. The customer opens the link on their phone, reads the quote, and approves or declines it. The same link later shows the repair status. The owner gets a dashboard with workload and this month's revenue, and manages the staff accounts.
 
-**Live app:** https://garage-desk-tau.vercel.app (staff sign in at `/login`)
+**Live app:** https://garage-desk-tau.vercel.app. The home page explains the product; staff sign in at `/login`.
 
 Stack: Next.js 16 (App Router) and TypeScript, Supabase (Postgres and Auth), Tailwind v4, Vitest, Playwright, GitHub Actions, hosted on Vercel.
 
 | Doc | What is in it |
 |---|---|
 | [docs/PRD.md](docs/PRD.md) | The spec, including the client's answers (§12) |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Every non-obvious choice and why (D-001 to D-075) |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Every non-obvious choice and why (D-001 to D-096) |
 | [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md) | A screen-by-screen tour with screenshots of the live app |
 | [docs/NEXT-STEPS.md](docs/NEXT-STEPS.md) | What to do before and after real use |
-| [docs/PLAN.md](docs/PLAN.md), [docs/DESIGN.md](docs/DESIGN.md) | Build plan and design system |
+| [docs/UPDATES.md](docs/UPDATES.md) | What was delivered in each phase |
+| [docs/PLAN.md](docs/PLAN.md), [docs/DESIGN.md](docs/DESIGN.md) | Build plan (Phase 5: landing, sign-in, profile, staff) and design system, including the role checklist |
 
 ## Who can do what
 
@@ -25,11 +26,25 @@ Stack: Next.js 16 (App Router) and TypeScript, Supabase (Postgres and Auth), Tai
 | Approve the quote | Records a phone approval, with a note | No | Approve, or decline with an optional reason, while the job is Quoted |
 | Start, finish, rework, mark collected | Yes | Their own jobs | Sees the current status and a dated timeline |
 | Cancel a job | Yes, with a reason (final) | No | — |
-| Dashboard and settings | Yes | No ("page not found") | — |
+| Dashboard | Yes. Every figure opens the list of jobs it counts (D-090). | No ("page not found") | — |
+| Settings (rate, VAT, garage details) | Yes | No ("page not found") | — |
+| Staff page (`/staff`) | Add mechanics, reset a mechanic's password, deactivate or reactivate staff | No ("page not found") | — |
+| Own profile (`/profile`) | Photo, name, phone, "about", password | Same | — |
+| Colleagues | Name and photo of everyone; the staff list with emails | Name and photo only | — |
 
-A customer with jobs cannot be deleted (D-062). Sources: PRD §3, D-020, D-051, D-052, D-054.
+A customer with jobs cannot be deleted (D-062). Nobody, the owner included, can read a colleague's phone or "about" text (D-076). Owner-only pages answer a mechanic with the same "Page not found" as any unknown address, and owner-only buttons are never sent to a mechanic's browser (D-085). The database enforces every rule above; hiding a button is only cosmetic. Sources: PRD §3, D-020, D-051, D-052, D-054, D-076, D-077, D-085.
 
 Job statuses: `New → Quoted → Approved → In progress → Ready → Collected`, plus `Declined` (the customer said no; staff can send a new quote) and `Cancelled` (owner only, final). `Ready → In progress` is rework. Changing the lines of a Quoted, Approved or In progress job creates a new quote version and puts the job back to Quoted.
+
+## Staff accounts and passwords
+
+- **No public sign-up.** The owner adds mechanics on `/staff`. Each new account gets a temporary password, shown once in the dialog with a Copy button and never stored or logged. The owner shares it privately, and the mechanic sets their own password on `/profile`. (D-077, D-084)
+- **Changing your password.** On `/profile`, with your current password. A password needs at least 12 characters, with a lowercase letter, an uppercase letter and a digit. Changing it signs out your other sessions. (D-079)
+- **A mechanic who forgets their password** asks the owner, who presses "Reset password" on `/staff` and gets a new temporary password, shown once.
+- **An owner who forgets their password** needs the administrator (whoever runs the Supabase project). An owner's password is never reset from `/staff`, because that would get around it. (D-077)
+- **Reset by email.** `/forgot-password` sends a one-time link that expires after an hour. It gives the same answer whether or not the address has an account, and it is rate-limited. It only runs when `PASSWORD_RESET_EMAIL` is `on`. Locally that works end to end, and the email lands in the local mail catcher (see "Run it locally"). Production needs custom SMTP first, because Supabase's built-in mailer only reaches the project team and the free tier cannot change the email template (D-079, D-086, D-094). Until then `PASSWORD_RESET_EMAIL` is off on production: the forgot-password page shows no form, tells staff to ask the owner to reset their password from the Staff page, and tells owners to contact the administrator. Setting up SMTP is in [NEXT-STEPS](docs/NEXT-STEPS.md).
+- **Deactivating someone.** The owner presses "Deactivate" on `/staff`. The person is signed out on every device at once and cannot sign in until reactivated. Their open jobs stay assigned to them, and the dashboard keeps their workload card, marked "Inactive · reassign", so the owner can reassign those jobs. Nobody can deactivate themselves, and the garage always keeps at least one active owner. (D-077, D-092, D-095)
+- **Signing out** ends the session on the device in use only. Changing your password signs out your other devices.
 
 ## Key choices and why
 
@@ -51,7 +66,7 @@ The hourly rate is copied onto each labour line when the line is added. The VAT 
 
 **5. Server-side Next.js with a strict Content Security Policy.** All data access runs in server components and server actions. There is no Supabase client in the browser, and the auth cookies are `httpOnly`. Every page gets a per-request nonce CSP, set in `src/proxy.ts`. Server actions return fixed sentences, never raw database errors. (D-001, D-034, D-043, D-044)
 
-**6. Vercel and Supabase hosting.** Deploys need no servers to manage, and env vars stay outside the repo. Vercel's Hobby tier has no rate-limit rules, so rate limits live in Postgres (D-004, D-012). The Supabase project is in Tokyo (`ap-northeast-1`), so the Vercel functions also run in Tokyo (`hnd1`), next to the database. Users in Sofia pay one long round trip per request. Moving both to Frankfurt is the first infrastructure item in [NEXT-STEPS](docs/NEXT-STEPS.md). (D-066, D-073)
+**6. Vercel and Supabase hosting.** Deploys need no servers to manage, and env vars stay outside the repo. Vercel's Hobby tier has no rate-limit rules, so rate limits live in Postgres (D-004, D-012). The Supabase project is in Tokyo (`ap-northeast-1`), so the Vercel functions also run in Tokyo (`hnd1`), next to the database. Users in Sofia pay one long round trip per request, and customer data is stored outside the EU. Moving both to Frankfurt needs a new Supabase project and is the client's decision; it is listed under "Now" in [NEXT-STEPS](docs/NEXT-STEPS.md). (D-066, D-073)
 
 ## How the approval link stays safe
 
@@ -67,17 +82,19 @@ The link looks like `https://garage-desk-tau.vercel.app/<token>`. Anyone holding
 - **Staff cannot approve as the customer.** If a signed-in staff member opens the link, Approve and Decline refuse and point to the phone approval on the job page. (D-067)
 - **Staff can revoke or regenerate the link.** The owner or the assigned mechanic can revoke it in any status, and create or regenerate it while the job is Quoted, Declined, Approved, In progress or Ready. Regenerating revokes the old link in the same database call. (D-013, D-039, D-053)
 - **The link does not expire.** This was the client's decision (PRD §12, question 6). The link shows the current status until staff revoke it. (D-053)
-- **No leaks through headers.** Every response carries `X-Robots-Tag: noindex`, `Referrer-Policy: no-referrer` and `Cache-Control: no-store`, so search engines skip the page, the token is not sent to other sites, and caches do not keep it. (D-019)
+- **No leaks through headers.** Every response carries `Referrer-Policy: no-referrer` and `Cache-Control: no-store`, so the token is not sent to other sites and caches do not keep it. Every page except the public home page `/` also carries `X-Robots-Tag: noindex`, so search engines skip links, staff pages and 404s alike. (D-019, D-094)
+- **Nothing to look up for junk addresses.** A path that is not exactly 43 base64url characters cannot be a link, so it gets the same 404 before any database call. (D-093)
 
 ## What was left out on purpose
 
-From PRD §9 and the decisions log:
+From PRD §9 and the decisions log. (A staff management screen was on this list until the client asked for it in Phase 5; it now ships as `/staff`.)
 
 - Payments, invoices and invoice PDFs.
-- Automatic messages. The app sends no SMS, WhatsApp or email. Staff copy the link, or press "Share via WhatsApp", which opens WhatsApp with the message and link filled in.
+- Automatic messages to customers. The app sends no SMS, WhatsApp or email to customers. Staff copy the link, or press "Share via WhatsApp", which opens WhatsApp with the message and link filled in. The only email the app can send is a staff password reset, and that is off on production until SMTP is set up.
 - Parts inventory and a parts catalogue.
 - Appointments and booking.
-- A staff management screen. Staff accounts are created by script, and there is no public sign-up.
+- Public sign-up. Only the owner adds staff.
+- Forcing a new password at first sign-in after a temporary password. Staff are asked to change it on `/profile`, but nothing makes them (D-077).
 - More than one garage.
 - Offline mode.
 - Translations. The UI is in English (D-055).
@@ -107,6 +124,8 @@ pnpm dev                        # http://localhost:3000
 
 No command prints a key or a password. The seed prints the demo customer links, which work like passwords for those jobs.
 
+To try the password-reset email locally, add `PASSWORD_RESET_EMAIL=on` to `.env.development.local` (or set it in your shell) before `pnpm dev`. `node scripts/ci-write-env.mjs` rewrites that file, so add it again after running it. The email lands in Mailpit at http://127.0.0.1:56424. The password-reset e2e test needs it too; CI sets it for the e2e step.
+
 ### Env files
 
 | File | In git | What it holds |
@@ -120,6 +139,7 @@ No command prints a key or a password. The seed prints the demo customer links, 
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase project URL and public key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server only. Read in `src/lib/supabase/admin.ts` and by the scripts. |
 | `NEXT_PUBLIC_SITE_URL` | Base URL for customer links, no trailing slash |
+| `PASSWORD_RESET_EMAIL` | `on` lets `/forgot-password` send the reset email. Unset or anything else means off. Off on production until custom SMTP is set up (D-086, D-094). |
 | `SEED_OWNER_PASSWORD`, `SEED_MECHANIC_1_PASSWORD` to `SEED_MECHANIC_3_PASSWORD` | Seed staff passwords, generated by `pnpm credentials:generate` |
 
 ### Tests
@@ -141,7 +161,9 @@ E2E_BASE_URL=https://garage-desk-tau.vercel.app pnpm test:e2e
 
 In PowerShell: `$env:E2E_BASE_URL="https://garage-desk-tau.vercel.app"; pnpm test:e2e`.
 
-For a deployed URL, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` of that project must be set in the shell. The `.env.development.local` fallback is only used for local URLs. The suite creates its own staff (on `@e2e.garagedesk.test`) and jobs in that project, so on production run it before the seed, which clears jobs (PLAN 4.2).
+For a deployed URL, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` of that project must be set in the shell. The `.env.development.local` fallback is only used for local URLs. Each run creates its own staff accounts (`owner+<run id>@e2e.garagedesk.test` and two mechanics) and deletes them at the end, together with the jobs they made. Customers and vehicles that the tests create are left behind, so on production run the suite before the seed, which clears them (PLAN 4.2). On production every run comes from one IP address, so keep to 10 sign-ins per 5 minutes or wait between runs (D-087).
+
+**Overlapping e2e runs.** Since D-096, two runs against the same stack no longer break each other: each run has its own accounts and auth files, and the one test that changes the global settings row takes a file lock, so runs on one machine take turns. Runs from two different machines against the same database can still collide on that settings row. Before D-096, every run re-keyed and then deactivated the same accounts, so never run two suites at once on a checkout older than D-096. CI is not affected: it runs one suite per throwaway stack.
 
 ### Other scripts
 
@@ -157,11 +179,14 @@ For a deployed URL, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` 
 
 | Path | What |
 |---|---|
-| `src/app/(staff)/` | Staff pages: jobs, customers, dashboard, settings |
+| `src/app/page.tsx`, `src/components/landing/` | The public home page (also the shell for the sign-in pages) |
+| `src/app/login/`, `src/app/forgot-password/`, `src/app/reset-password/`, `src/app/auth/confirm/` | Sign-in, and password reset by email |
+| `src/app/(staff)/` | Staff pages: dashboard, jobs, customers, settings, staff, profile |
 | `src/app/[token]/` | The customer link page and its Approve/Decline actions |
 | `src/proxy.ts` | CSP nonce, session refresh, the link check before render |
-| `src/lib/` | Money, formatting, statuses, tokens, the public DTO, rate limiting, data access |
+| `src/lib/` | Money, formatting, statuses, tokens, the public DTO, rate limiting, auth, password rules, data access |
 | `supabase/migrations/` | Schema, RLS, `transition_job` and the other database functions |
+| `supabase/templates/recovery.html` | The password-reset email (local now; production once SMTP is set up) |
 | `scripts/` | Seed, credentials, env writer, secret scans |
 | `tests/unit/`, `tests/integration/`, `e2e/` | Vitest unit, Vitest database, Playwright |
 
@@ -176,7 +201,7 @@ The seed creates 1 owner and 3 mechanics (`scripts/staff.ts`):
 | Nikolay Stoyanov | Mechanic | nikolay@garagedesk.test |
 | Stefan Kolev | Mechanic | stefan@garagedesk.test |
 
-Passwords are never in this repo. `pnpm credentials:generate` creates a strong random password for each account once, before seeding. It writes them only to two gitignored files: `.env.local`, which the seed reads, and `CREDENTIALS.local.md`, which is sent to the client separately and then deleted. A production seed run also adds the demo customer links to that file.
+Passwords are never in this repo. `pnpm credentials:generate` creates a strong random password for each account once, before seeding. It writes them only to two gitignored files: `.env.local`, which the seed reads, and `CREDENTIALS.local.md`, which is sent to the client separately and then deleted. A production seed run also adds the demo customer links to that file. Each person should change their password on `/profile` after the first sign-in.
 
 The demo garage is "Petrov Auto Service": €45.00/h, 20% VAT, 10 customers, 15 vehicles and 20 jobs across all 8 statuses, covering every scenario in PRD §8.
 
@@ -186,5 +211,7 @@ The demo garage is "Petrov Auto Service": €45.00/h, 20% VAT, 10 customers, 15 
 - **Secret scan on every commit and push.** `pnpm install` points git at `.githooks`. The pre-commit hook scans staged files, the pre-push hook scans all tracked files, and CI scans again. It blocks env files, `.vercel/`, `CREDENTIALS.local.md`, key patterns and any exact value from your local env files. After each CI build, `pnpm bundle:scan` checks the client bundle. (D-046)
 - **Schema changes only through migrations.** Add a new file to `supabase/migrations/` and apply it with `supabase db push`. Never edit a migration that has been applied. D-065 explains how migrations reach the remote project today.
 - **Production deploys.** Export the pushed commit with `git archive HEAD` into an empty folder (plus `.vercel/project.json`) and run `vercel deploy --prod --force` there as `kurtgav` (`--force` skips the build cache, D-089), so only committed files are uploaded and the deploy is not blocked by the commit-author check on the Hobby plan (D-073, D-075). Git deployments are off on the Vercel project.
-- **Env vars live in Vercel.** `NEXT_PUBLIC_SITE_URL` must be the live URL, because customer links are built from it. Preview deployments fall back to the request's origin. `pnpm credentials:generate --push-vercel` also stores the seed passwords in the Vercel production env.
+- **Env vars live in Vercel.** `NEXT_PUBLIC_SITE_URL` must be the live URL, because customer links are built from it. Preview deployments fall back to the request's origin.
+  - The `SEED_*_PASSWORD` values are in the Production env because the client asked for them there (`pnpm credentials:generate --push-vercel` puts them there). The app never reads them at runtime, but anyone with access to the Vercel project can. Remove them after onboarding, once every person has changed their password (NEXT-STEPS).
+  - The Preview env no longer holds the service-role key, so a preview deployment has no admin access to production data. A separate Supabase project for previews is in NEXT-STEPS.
 - **CI.** GitHub Actions runs on every push to `main` and every pull request: secret scan, lint, typecheck and unit tests, then integration tests, build, bundle scan and e2e against a throwaway local Supabase stack, never production. (D-006)

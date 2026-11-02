@@ -207,7 +207,7 @@ Search covers name, phone and plate. Normalise phone numbers (digits only) and p
 - Sending SMS or WhatsApp automatically (staff share the link manually)
 - Parts inventory and catalogue
 - Appointments and booking
-- Staff management UI
+- ~~Staff management UI~~ Delivered in Phase 5 at the client's request (3 Nov): the owner adds mechanics, resets their passwords and deactivates or reactivates staff on `/staff`, and every staff member edits their own profile and password on `/profile` (PLAN Phase 5, D-077, D-084).
 - Multi-garage support
 - Offline mode
 - i18n
