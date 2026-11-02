@@ -208,7 +208,7 @@ function JobsEmpty({
   if (status) {
     return (
       <EmptyState
-        title={`No ${STATUS_LABEL[status].toLowerCase()} jobs`}
+        title={`No ${STATUS_LABEL[status].toLowerCase()} jobs${isOwner ? "" : " assigned to you"}`}
         description="Jobs show up here when they reach this status."
         action={
           <Link

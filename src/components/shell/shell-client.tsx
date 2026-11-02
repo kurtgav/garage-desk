@@ -3,6 +3,7 @@
 import {
   ChevronRight,
   ChevronsUpDown,
+  CircleUserRound,
   ClipboardList,
   LayoutDashboard,
   LogOut,
@@ -11,6 +12,7 @@ import {
   Plus,
   Search,
   Settings,
+  UserCog,
   Users,
   X,
 } from "lucide-react";
@@ -19,6 +21,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { Dialog as DialogPrimitive, DropdownMenu } from "radix-ui";
 import { useRef, useState } from "react";
 import { signOut } from "@/app/login/actions";
+import { Avatar } from "@/components/avatar";
 import { buttonVariants } from "@/components/ui/button";
 import { Wordmark } from "@/components/wordmark";
 import { cn } from "@/lib/utils";
@@ -30,9 +33,12 @@ import { cn } from "@/lib/utils";
  */
 export function AppShell({
   sidebar,
+  user,
   children,
 }: {
   sidebar: React.ReactNode;
+  /** For the top bar's profile link, shown while the sidebar (and its user card) is out of view. */
+  user: { name: string; avatarUrl: string | null };
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -88,6 +94,7 @@ export function AppShell({
 
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar
+            user={user}
             onOpenMenu={() => setDrawerOpen(true)}
             onExpandSidebar={collapsed ? () => setCollapsed(false) : undefined}
           />
@@ -138,6 +145,8 @@ const SECTIONS = [
   { prefix: "/jobs", label: "Jobs", icon: ClipboardList },
   { prefix: "/customers", label: "Customers", icon: Users },
   { prefix: "/settings", label: "Settings", icon: Settings },
+  { prefix: "/staff", label: "Staff", icon: UserCog },
+  { prefix: "/profile", label: "Profile", icon: CircleUserRound },
 ];
 
 function useSectionTitle(): {
@@ -163,9 +172,11 @@ function useSectionTitle(): {
 }
 
 function TopBar({
+  user,
   onOpenMenu,
   onExpandSidebar,
 }: {
+  user: { name: string; avatarUrl: string | null };
   onOpenMenu: () => void;
   onExpandSidebar?: () => void;
 }) {
@@ -244,6 +255,14 @@ function TopBar({
           <Plus aria-hidden />
           <span className="hidden sm:inline">New job</span>
         </Link>
+        {/* Desktop shows the user card in the sidebar; this link stands in while it is hidden. */}
+        <Link
+          href="/profile"
+          aria-label="Your profile"
+          className={cn("grid size-10 shrink-0 place-items-center rounded-full", !onExpandSidebar && "lg:hidden")}
+        >
+          <Avatar name={user.name} src={user.avatarUrl} className="size-9" />
+        </Link>
       </div>
     </header>
   );
@@ -317,41 +336,34 @@ export function NavLink({
   );
 }
 
-/** Signed-in staff member; the menu holds Sign out. */
+/** Signed-in staff member: photo, name, role. The menu holds Profile and Sign out. */
 export function UserMenu({
   name,
   email,
   roleLabel,
+  avatarUrl,
 }: {
   name: string;
   email: string;
   roleLabel: string;
+  avatarUrl: string | null;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
-  const initials = name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .join("");
+  const item =
+    "flex h-10 cursor-default items-center gap-2 rounded-md px-2.5 text-sm text-ink outline-none select-none data-highlighted:bg-raised";
 
   return (
     <>
       {/* Outside the menu so it survives the menu closing while the action runs. */}
       <form ref={formRef} action={signOut} hidden />
-      <DropdownMenu.Root>
+      {/* Not modal: a modal menu aria-hides the whole app while open (axe aria-hidden-focus); focus still moves into the menu. */}
+      <DropdownMenu.Root modal={false}>
         <DropdownMenu.Trigger className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors duration-150 hover:bg-raised data-[state=open]:bg-raised">
-          <span
-            aria-hidden
-            className="grid size-9 shrink-0 place-items-center rounded-full bg-ink text-[13px] font-medium text-on-accent"
-          >
-            {initials}
-          </span>
+          <Avatar name={name} src={avatarUrl} />
           <span className="min-w-0 flex-1 leading-tight">
-            <span className="block truncate text-sm font-medium text-ink">
-              {name}
-            </span>
-            <span className="block truncate text-[13px] text-faint">
-              {email || roleLabel}
+            <span className="block truncate text-sm font-medium text-ink">{name}</span>
+            <span className="mt-1 inline-flex rounded-full border border-edge bg-surface px-1.5 text-xs leading-[18px] text-muted">
+              {roleLabel}
             </span>
           </span>
           <ChevronsUpDown aria-hidden className="size-4 shrink-0 text-faint" />
@@ -364,13 +376,14 @@ export function UserMenu({
             sideOffset={6}
             className="z-50 w-(--radix-dropdown-menu-trigger-width) min-w-52 rounded-lg bg-surface p-1 shadow-menu data-[state=closed]:animate-fade-out data-[state=open]:animate-pop-in"
           >
-            <DropdownMenu.Label className="px-2.5 py-2 text-[13px] text-faint">
-              Signed in as {roleLabel.toLowerCase()}
-            </DropdownMenu.Label>
-            <DropdownMenu.Item
-              onSelect={() => formRef.current?.requestSubmit()}
-              className="flex h-10 cursor-default items-center gap-2 rounded-md px-2.5 text-sm text-ink outline-none select-none data-highlighted:bg-raised"
-            >
+            <DropdownMenu.Label className="px-2.5 py-2 text-[13px] break-all text-faint">{email}</DropdownMenu.Label>
+            <DropdownMenu.Item asChild className={item}>
+              <Link href="/profile">
+                <CircleUserRound aria-hidden className="size-4 text-faint" />
+                Profile
+              </Link>
+            </DropdownMenu.Item>
+            <DropdownMenu.Item onSelect={() => formRef.current?.requestSubmit()} className={item}>
               <LogOut aria-hidden className="size-4 text-faint" />
               Sign out
             </DropdownMenu.Item>

@@ -151,8 +151,12 @@ export default async function CustomerPage({ params }: Props) {
           {customer.jobs.length === 0 ? (
             <CardContent className="pt-0">
               <EmptyState
-                title="No jobs yet"
-                description="Start one from a vehicle on the left."
+                title={isOwner ? "No jobs yet" : "No jobs assigned to you"}
+                description={
+                  isOwner
+                    ? "Start one from a vehicle on the left."
+                    : "Jobs for this customer that you create or the owner assigns to you show up here."
+                }
               />
             </CardContent>
           ) : (

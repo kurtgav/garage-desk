@@ -20,7 +20,7 @@ export function CustomerFields({
   customer?: Pick<CustomerListItem, "fullName" | "phone" | "email">;
 }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className="grid items-start gap-4 sm:grid-cols-2">
       <Field id={`${prefix}-full-name`} label="Full name" error={errors.full_name} className="sm:col-span-2">
         <Input name="full_name" autoComplete="off" maxLength={200} defaultValue={customer?.fullName} />
       </Field>
@@ -43,7 +43,7 @@ export function CustomerFields({
 /** Plate, make, model, year. */
 export function VehicleFields({ prefix, errors, vehicle }: { prefix: string; errors: Errors; vehicle?: Vehicle }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_7rem]">
+    <div className="grid items-start gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_7rem]">
       <Field id={`${prefix}-plate`} label="Plate" hint="e.g. CA 1234 AB" error={errors.plate}>
         <Input
           name="plate"

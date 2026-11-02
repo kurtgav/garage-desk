@@ -25,7 +25,7 @@ export function SettingsForm({ settings }: { settings: GarageSettings }) {
 
   return (
     <form onSubmit={submitRequired(dispatch, REQUIRED, setErrors)} noValidate className="grid gap-6">
-      <fieldset className="grid gap-4 sm:grid-cols-2">
+      <fieldset className="grid items-start gap-4 sm:grid-cols-2">
         <legend className="mb-3 text-base font-semibold text-ink">Prices</legend>
         <Field
           id="settings-hourly-rate"

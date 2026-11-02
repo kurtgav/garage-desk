@@ -4,8 +4,8 @@ import { Check, Copy } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
-/** Copies `value`; the result is announced politely and shown on the button for 2 s. */
-export function CopyButton({ value, label = "Copy" }: { value: string; label?: string }) {
+/** Copies `value`; the result is announced politely and shown on the button for 2 s. `noun` names it in the fallback hint. */
+export function CopyButton({ value, label = "Copy", noun = "link" }: { value: string; label?: string; noun?: string }) {
   const [result, setResult] = useState<"idle" | "copied" | "failed">("idle");
 
   async function copy() {
@@ -29,7 +29,7 @@ export function CopyButton({ value, label = "Copy" }: { value: string; label?: s
       </span>
       {result === "failed" && (
         <p role="alert" className="basis-full text-sm font-medium text-danger">
-          Copy did not work here. Select the link and copy it by hand.
+          Copy did not work here. Select the {noun} and copy it by hand.
         </p>
       )}
     </>

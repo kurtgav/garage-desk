@@ -4,6 +4,7 @@ import {
   ClipboardList,
   LayoutDashboard,
   Settings,
+  UserCog,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -19,7 +20,7 @@ import { NavLink, UserMenu } from "./shell-client";
 const ROLE_LABEL = { owner: "Owner", mechanic: "Mechanic" } as const;
 
 /** Sidebar contents (server-rendered; the frame places it in the desktop column and the phone drawer). */
-export function Sidebar({ staff, shell }: { staff: Staff; shell: ShellData }) {
+export function Sidebar({ staff, shell, avatarUrl }: { staff: Staff; shell: ShellData; avatarUrl: string | null }) {
   const isOwner = staff.role === "owner";
 
   return (
@@ -61,6 +62,9 @@ export function Sidebar({ staff, shell }: { staff: Staff; shell: ShellData }) {
 
         {isOwner && (
           <NavGroup label="Garage">
+            <NavLink href="/staff" icon={<UserCog strokeWidth={1.5} />}>
+              Staff
+            </NavLink>
             <NavLink href="/settings" icon={<Settings strokeWidth={1.5} />}>
               Settings
             </NavLink>
@@ -92,6 +96,7 @@ export function Sidebar({ staff, shell }: { staff: Staff; shell: ShellData }) {
           name={staff.fullName}
           email={staff.email}
           roleLabel={ROLE_LABEL[staff.role]}
+          avatarUrl={avatarUrl}
         />
       </div>
     </>
