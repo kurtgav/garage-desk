@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { toPublicJob } from "@/lib/public-job";
 import { JOB_STATUSES } from "@/lib/status";
@@ -211,18 +211,24 @@ describe("FR6: regenerate, approve and decline through the link", () => {
   });
 
   it("approve with the revoked token is rejected", async () => {
-    await expectCustomerRejected(job.id, () => customerTransition(job.id, "approved", oldLink.hash));
+    await expectCustomerRejected(job.id, () => customerTransition(job.id, "approved", oldLink.hash, null, job.quoted_total_cents));
   });
 
   it("approve with another job's link is rejected (no event on either job)", async () => {
     const otherEvents = await eventsFor(other.id);
-    await expectCustomerRejected(job.id, () => customerTransition(job.id, "approved", otherLink.hash));
+    await expectCustomerRejected(job.id, () => customerTransition(job.id, "approved", otherLink.hash, null, job.quoted_total_cents));
     expect(await eventsFor(other.id)).toHaveLength(otherEvents.length);
     expect((await getJob(other.id)).status).toBe("quoted");
   });
 
   it("customer mode is service-role only: anon and signed-in staff cannot use a link hash", async () => {
-    const args = { p_job_id: job.id, p_to_status: "approved", p_note: null, p_link_token_hash: link.hash };
+    const args = {
+      p_job_id: job.id,
+      p_to_status: "approved",
+      p_note: null,
+      p_link_token_hash: link.hash,
+      p_expected_total_cents: job.quoted_total_cents,
+    };
     await expectCustomerRejected(job.id, () => anonClient().rpc("transition_job", args));
     await expectCustomerRejected(job.id, () => ownerDb.rpc("transition_job", args));
     await expectCustomerRejected(job.id, () => mechDb.rpc("transition_job", args));
@@ -235,9 +241,21 @@ describe("FR6: regenerate, approve and decline through the link", () => {
     await expectCustomerRejected(job.id, () => transition(anon, job.id, "new"));
   });
 
+  it("D-037: Approve without the shown total, or with a different one, is quote_changed and changes nothing", async () => {
+    const total = job.quoted_total_cents!;
+    for (const expected of [undefined, null, 0, total - 1, total + 1]) {
+      const events = await eventsFor(job.id);
+      const { data, error } = await customerTransition(job.id, "approved", link.hash, null, expected);
+      expect(data).toBeNull();
+      expect(error?.message).toBe("quote_changed");
+      expect(await eventsFor(job.id)).toHaveLength(events.length);
+      expect((await getJob(job.id)).status).toBe("quoted");
+    }
+  });
+
   it("customer Approve records approved_at/approved_total_cents and one customer event", async () => {
     const before = await eventsFor(job.id);
-    const { data, error } = await customerTransition(job.id, "approved", link.hash);
+    const { data, error } = await customerTransition(job.id, "approved", link.hash, null, job.quoted_total_cents);
     expect(error).toBeNull();
     expect(data).toMatchObject({ status: "approved", approved_total_cents: job.quoted_total_cents });
     expect(data.approved_at).not.toBeNull();
@@ -252,7 +270,7 @@ describe("FR6: regenerate, approve and decline through the link", () => {
     expect((await publicJob(link.hash)).data.job.status).toBe("approved");
   });
 
-  it("Approve is idempotent: a second call succeeds with no new event", async () => {
+  it("Approve is idempotent: a second call succeeds with no new event (a replay needs no total)", async () => {
     const before = await eventsFor(job.id);
     const { data, error } = await customerTransition(job.id, "approved", link.hash);
     expect(error).toBeNull();
@@ -295,10 +313,28 @@ describe("FR6: regenerate, approve and decline through the link", () => {
 });
 
 describe("FR6 hardening", () => {
+  it("D-037: a quote re-sent after the customer opened the page cannot be approved at the old total", async () => {
+    const job = await quotedJob();
+    const link = await createLink(ownerDb, job.id);
+    const shownTotal = job.quoted_total_cents;
+    await mustTransition(ownerDb, job.id, "new");
+    await addLine(ownerDb, { jobId: job.id, kind: "part", quantity: 1, unitPriceCents: 5000 });
+    const requoted = await mustTransition(ownerDb, job.id, "quoted");
+    expect(requoted.quoted_total_cents).not.toBe(shownTotal);
+
+    const stale = await customerTransition(job.id, "approved", link.hash, null, shownTotal);
+    expect(stale.error?.message).toBe("quote_changed");
+    expect((await getJob(job.id)).status).toBe("quoted");
+
+    const fresh = await customerTransition(job.id, "approved", link.hash, null, requoted.quoted_total_cents);
+    expect(fresh.error).toBeNull();
+    expect(fresh.data).toMatchObject({ status: "approved", approved_total_cents: requoted.quoted_total_cents });
+  });
+
   it("D-015: a link stops working 30 days after collection", async () => {
     const job = await quotedJob();
     const link = await createLink(ownerDb, job.id);
-    unwrapOk(await customerTransition(job.id, "approved", link.hash));
+    unwrapOk(await customerTransition(job.id, "approved", link.hash, null, job.quoted_total_cents));
     for (const to of ["in_progress", "ready", "collected"] as const) await mustTransition(ownerDb, job.id, to);
     const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString();
 
@@ -322,3 +358,54 @@ describe("FR6 hardening", () => {
 function unwrapOk(res: { error: { message: string } | null }) {
   expect(res.error).toBeNull();
 }
+
+describe("D-039: revoke_job_link switches the link off in any status", () => {
+  let otherMechDb: Db;
+
+  beforeAll(async () => {
+    otherMechDb = await signInAs(await createStaff("mechanic", "Mechanic Other"));
+  });
+
+  const revoke = (db: Db, jobId: string) => db.rpc("revoke_job_link", { p_job_id: jobId });
+
+  it("works while the quote is being revised (New); a second revoke returns false", async () => {
+    const job = await quotedJob();
+    const link = await createLink(ownerDb, job.id);
+    await mustTransition(ownerDb, job.id, "new");
+    expect((await publicJob(link.hash)).data).not.toBeNull(); // D-023: the link survives a revise
+
+    expect(await revoke(mechDb, job.id)).toMatchObject({ data: true, error: null });
+    expect((await publicJob(link.hash)).data).toBeNull();
+    expect(await revoke(mechDb, job.id)).toMatchObject({ data: false, error: null });
+  });
+
+  it("works on approved and collected jobs; the old hash then finds nothing", async () => {
+    const job = await quotedJob();
+    const first = await createLink(ownerDb, job.id);
+    unwrapOk(await customerTransition(job.id, "approved", first.hash, null, job.quoted_total_cents));
+    expect(await revoke(ownerDb, job.id)).toMatchObject({ data: true, error: null });
+    expect((await publicJob(first.hash)).data).toBeNull();
+
+    const second = await createLink(ownerDb, job.id);
+    for (const to of ["in_progress", "ready", "collected"] as const) await mustTransition(ownerDb, job.id, to);
+    expect((await publicJob(second.hash)).data).not.toBeNull();
+    expect(await revoke(ownerDb, job.id)).toMatchObject({ data: true, error: null });
+    expect((await publicJob(second.hash)).data).toBeNull();
+    const active = (await admin.from("job_links").select("id").eq("job_id", job.id).is("revoked_at", null)).data;
+    expect(active).toHaveLength(0);
+  });
+
+  it("another mechanic gets not_found and the link stays active; anon cannot call it", async () => {
+    const job = await quotedJob();
+    const link = await createLink(ownerDb, job.id);
+    const res = await revoke(otherMechDb, job.id);
+    expect(res.data).toBeNull();
+    expect(res.error?.message).toBe("not_found");
+    expect((await revoke(anonClient(), job.id)).error).not.toBeNull();
+    expect((await publicJob(link.hash)).data).not.toBeNull();
+  });
+
+  it("a missing job is not_found", async () => {
+    expect((await revoke(ownerDb, randomUUID())).error?.message).toBe("not_found");
+  });
+});

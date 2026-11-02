@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   type Db,
@@ -90,7 +91,7 @@ describe("FR1 AC1: a mechanic gets not-found and no data for another mechanic's 
     expect((await bDb.from("vehicles").select("*").eq("id", vehicleId)).data ?? []).toHaveLength(0);
   });
 
-  it("transition_job raises not_found/forbidden and writes no event", async () => {
+  it("transition_job raises not_found (same as a missing id) and writes no event", async () => {
     for (const [job, to] of [
       [quotedJob, "new"],
       [newJob, "quoted"],
@@ -98,10 +99,31 @@ describe("FR1 AC1: a mechanic gets not-found and no data for another mechanic's 
       const before = await eventsFor(job.id);
       const { data, error } = await transition(bDb, job.id, to, "hijack");
       expect(data).toBeNull();
-      expect(error?.message).toMatch(/not_found|forbidden/);
+      expect(error?.message).toBe("not_found");
       expect(await eventsFor(job.id)).toHaveLength(before.length);
       expect((await getJob(job.id)).status).toBe(job.status);
     }
+    expect((await transition(bDb, randomUUID(), "quoted")).error?.message).toBe("not_found");
+  });
+
+  it("a mechanic passing a link hash gets forbidden, whatever the job id (D-038)", async () => {
+    const before = await eventsFor(quotedJob.id);
+    for (const [db, jobId] of [
+      [bDb, quotedJob.id],
+      [aDb, quotedJob.id],
+      [bDb, randomUUID()],
+    ] as const) {
+      const { data, error } = await db.rpc("transition_job", {
+        p_job_id: jobId,
+        p_to_status: "approved",
+        p_link_token_hash: link.hash,
+        p_expected_total_cents: quotedJob.quoted_total_cents,
+      });
+      expect(data).toBeNull();
+      expect(error?.message).toBe("forbidden");
+    }
+    expect(await eventsFor(quotedJob.id)).toHaveLength(before.length);
+    expect((await getJob(quotedJob.id)).status).toBe("quoted");
   });
 
   it("cannot add, change or delete its line items", async () => {

@@ -1,0 +1,3 @@
+#!/bin/sh
+# Blocks commits that stage secrets (see scripts/secrets-scan.mjs).
+exec node scripts/secrets-scan.mjs

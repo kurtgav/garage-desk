@@ -108,12 +108,13 @@ describe("FR5 AC2: every successful transition writes exactly one event with act
     ];
     let from: JobStatus = "new";
     let hash = "";
+    let quotedTotal: number | null = null;
     for (const { to, actor } of steps) {
       const before = await eventsFor(job.id);
       const started = Date.now();
       const res =
         actor === "customer"
-          ? await customerTransition(job.id, to, hash)
+          ? await customerTransition(job.id, to, hash, null, quotedTotal)
           : await transition(actor === "owner" ? ownerDb : mechDb, job.id, to);
       expect(res.error).toBeNull();
       expect(res.data.status).toBe(to);
@@ -129,7 +130,10 @@ describe("FR5 AC2: every successful transition writes exactly one event with act
       });
       expect(Math.abs(Date.parse(ev.created_at) - started)).toBeLessThan(60_000);
 
-      if (to === "quoted") hash = (await createLink(mechDb, job.id)).hash;
+      if (to === "quoted") {
+        hash = (await createLink(mechDb, job.id)).hash;
+        quotedTotal = (await getJob(job.id)).quoted_total_cents;
+      }
       from = to;
     }
 

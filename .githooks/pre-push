@@ -1,0 +1,3 @@
+#!/bin/sh
+# Blocks pushes if any tracked file contains a secret.
+exec node scripts/secrets-scan.mjs --all

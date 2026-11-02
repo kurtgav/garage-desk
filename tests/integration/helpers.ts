@@ -206,9 +206,24 @@ export function transition(db: Db, jobId: string, to: JobStatus, note?: string) 
   return db.rpc("transition_job", { p_job_id: jobId, p_to_status: to, ...(note === undefined ? {} : { p_note: note }) });
 }
 
-/** Customer mode (D-009): service role + the link's token hash, as the public server action does. Raw result. */
-export function customerTransition(jobId: string, to: JobStatus, tokenHash: string, note: string | null = null) {
-  return admin.rpc("transition_job", { p_job_id: jobId, p_to_status: to, p_note: note, p_link_token_hash: tokenHash });
+/**
+ * Customer mode (D-009): service role + the link's token hash, as the public server action does. Raw result.
+ * Approve needs the quoted total the customer saw (D-037); omitted means the argument is not sent.
+ */
+export function customerTransition(
+  jobId: string,
+  to: JobStatus,
+  tokenHash: string,
+  note: string | null = null,
+  expectedTotalCents?: number | null,
+) {
+  return admin.rpc("transition_job", {
+    p_job_id: jobId,
+    p_to_status: to,
+    p_note: note,
+    p_link_token_hash: tokenHash,
+    ...(expectedTotalCents === undefined ? {} : { p_expected_total_cents: expectedTotalCents }),
+  });
 }
 
 export async function mustTransition(db: Db, jobId: string, to: JobStatus, note?: string): Promise<JobRow> {
@@ -247,7 +262,7 @@ export async function advanceTo(staff: Db, jobId: string, target: JobStatus): Pr
     if (!next) throw new Error(`cannot advance from ${job.status} to ${target}`);
     if (next === "approved") {
       link ??= await createLink(staff, jobId);
-      job = unwrap(await customerTransition(jobId, "approved", link.hash), "customer approve");
+      job = unwrap(await customerTransition(jobId, "approved", link.hash, null, job.quoted_total_cents), "customer approve");
     } else {
       job = await mustTransition(staff, jobId, next);
     }

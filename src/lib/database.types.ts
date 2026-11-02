@@ -252,13 +252,16 @@ isOneToOne: false
 "rate_limit_hit":
 { Args: { "p_key": string,"p_max": number,"p_window_seconds": number }; Returns: boolean
                            },
+"revoke_job_link":
+{ Args: { "p_job_id": string }; Returns: boolean
+                           },
 "search_customers":
 { Args: { "p_query": string }; Returns: {
               "email": string,"full_name": string,"id": string,"phone": string,"vehicles": Json
             }[]
                            },
 "transition_job":
-{ Args: { "p_job_id": string,"p_link_token_hash"?: string,"p_note"?: string,"p_to_status": Database["public"]['Enums']["job_status"] }; Returns: {
+{ Args: { "p_expected_total_cents"?: number,"p_job_id": string,"p_link_token_hash"?: string,"p_note"?: string,"p_to_status": Database["public"]['Enums']["job_status"] }; Returns: {
               "approved_at": string | null,
 "approved_total_cents": number | null,
 "assigned_mechanic_id": string,
