@@ -96,3 +96,54 @@ Parallel: 3.1 ∥ 3.3 ∥ 3.4 ∥ 3.5 (disjoint routes). 3.6 after. 3.7 last.
 | 4.4 Docs | DOC | `README.md`, `docs/WALKTHROUGH.md`, `docs/NEXT-STEPS.md` | PRD §11 | review |
 
 Order: 4.2 runs against prod **before** the final seed (e2e creates data), then 4.1 seeds prod, then 4.4.
+
+## Phase 5 — Landing page, auth polish, profile, RBAC (client request 3 Nov)
+
+Request: landing page in the visual language of https://boxinside.webflow.io (reverse-engineered, our own content and imagery), login redesign, reveal-password toggle, forgot password, a profile page (photo, password, about), and a polished role model.
+
+### Routes
+
+| Route | Who | Notes |
+|---|---|---|
+| `/` | everyone | Landing page. Nav CTA: "Sign in" (anon) or "Open app" → role home (staff). No redirect. |
+| `/login` | anon | Redesigned; reveal-password toggle; "Forgot password?" link. Signed-in staff → role home. |
+| `/forgot-password` | anon | Email form. Always the same neutral answer (no account enumeration). Rate-limited. |
+| `/auth/confirm` | anon | Route handler: `verifyOtp({ type: "recovery", token_hash })` → session → `/reset-password`. Bad/expired → `/forgot-password?expired=1`. |
+| `/reset-password` | recovery session | New password + confirm; on success → role home. Without a session → `/forgot-password`. |
+| `/profile` | every active staff | Own profile: photo, full name, phone, about; email read-only; change password (current + new + confirm). |
+| `/staff` | owner | Staff list; add mechanic (temp password shown once); deactivate/reactivate (never self, never the last active owner); reset a staff password (temp password shown once). Mechanics get the generic 404. |
+
+Role home: owner → `/dashboard`, mechanic → `/jobs`. The proxy must let `/`, `/login`, `/forgot-password`, `/reset-password`, `/auth/confirm` through without the customer-token check; `/profile` and `/staff` are staff prefixes.
+
+### RBAC matrix (DB is the boundary; UI hiding is cosmetic)
+
+| Capability | Owner | Mechanic | Inactive / anon |
+|---|---|---|---|
+| Dashboard, revenue, settings, staff management | yes | 404 | → /login |
+| Jobs | all | own (assigned) | → /login |
+| Customers, vehicles | all | all (D-054) | → /login |
+| Own profile (name, phone, about, photo, password) | yes | yes | → /login |
+| Other staff profiles | read + manage (active, reset password) | read name/photo only | no |
+| Colleagues' photos | yes | yes | no |
+
+Deactivation takes effect at once: RLS helpers already require `profiles.active`; `getStaff()` treats inactive as signed out; deactivating also signs the user out everywhere (admin API, server-only).
+
+### Data contract
+
+- `profiles` gains `phone text null` (≤ 30), `about text null` (≤ 500), `avatar_path text null`, `updated_at timestamptz`. Column grant: `update (full_name, phone, about, avatar_path)` to `authenticated`; policy `profiles_update_self` (`id = auth.uid()` and active). `role` and `active` change only through owner-only server code (service role, server-only) with DB guards (no self-deactivation, at least one active owner).
+- Storage bucket `avatars` (private, 2 MB, `image/png`, `image/jpeg`, `image/webp`). Path `{user_id}/{random}.{ext}`. Policies: active staff read; insert/update/delete only in own folder. Shown through short-lived signed URLs created on the server; CSP `img-src` adds the Supabase origin. Uploads validated by size, MIME and magic bytes; no SVG.
+- Types in `src/lib/data/types.ts`: `Profile { id, fullName, email, role, phone, about, avatarUrl | null, active }`, `StaffMember { id, fullName, email, role, active, avatarUrl | null, openJobs }`, `TempPassword = { tempPassword: string }`.
+- Actions (all return `ActionResult`, field names in brackets):
+  - `src/app/forgot-password/actions.ts` `requestPasswordReset(prev, fd[email])` → `{ ok: true }` always after validation (neutral copy in the UI).
+  - `src/app/reset-password/actions.ts` `setNewPassword(prev, fd[password, confirm])` → redirect to role home.
+  - `src/app/(staff)/profile/actions.ts` `updateProfile(prev, fd[full_name, phone, about])`, `uploadAvatar(prev, fd[avatar])`, `removeAvatar()`, `changePassword(prev, fd[current_password, new_password, confirm_password])`.
+  - `src/app/(staff)/staff/actions.ts` `createStaff(prev, fd[full_name, email]) → ActionResult<TempPassword>`, `setStaffActive(prev, fd[id, active])`, `resetStaffPassword(prev, fd[id]) → ActionResult<TempPassword>`.
+  - Data: `src/lib/data/profile.ts` (`getMyProfile`), `src/lib/data/staff.ts` (`listStaff`, owner only).
+- Email: recovery template uses `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery`. Locally the mail catcher (`[local_smtp]`) is on for tests. In production Supabase's built-in mailer only reaches the project team's addresses, so real reset emails need custom SMTP (NEXT-STEPS); the owner's "reset password" on `/staff` is the working path meanwhile.
+
+### Ownership
+
+- **Backend:** migrations, `supabase/config.toml`, `src/proxy.ts`, `src/lib/auth.ts`, `src/lib/supabase/*`, `src/lib/data/*`, every `actions.ts` and `route.ts` above, login `actions.ts`, unit + integration tests (RBAC matrix).
+- **Frontend A (public):** landing page (`src/app/page.tsx`, `src/components/landing/*`, `public/landing/*`), `/login` UI, `/forgot-password` and `/reset-password` UI, `src/components/ui/password-input.tsx` (reveal toggle, created first, shared).
+- **Frontend B (staff):** `/profile` and `/staff` UI, shell (user menu → Profile, avatar, owner-only "Staff" nav item), RBAC polish across staff pages.
+- **QA:** e2e for every new flow (desktop + 375px), incl. reset via the local mail catcher, deactivation, and the RBAC matrix.
