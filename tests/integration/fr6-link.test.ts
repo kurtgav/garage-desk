@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { toPublicJob } from "@/lib/public-job";
-import { JOB_STATUSES } from "@/lib/status";
+import { JOB_STATUSES, type JobStatus } from "@/lib/status";
 import { expectWhitelistedKeys } from "../support/public-job";
 import {
   type Db,
@@ -10,6 +10,7 @@ import {
   type StaffUser,
   addLine,
   admin,
+  advanceTo,
   anonClient,
   cleanup,
   createCustomerWithVehicle,
@@ -21,11 +22,13 @@ import {
   getJob,
   mustTransition,
   newLinkToken,
+  phoneApproval,
   publicJob,
   rand,
   restoreSettings,
   signInAs,
   transition,
+  unwrap,
 } from "./helpers";
 
 const sha256 = (s: string) => createHash("sha256").update(s, "utf8").digest("hex");
@@ -38,14 +41,19 @@ let vehicle: { id: string; plate: string };
 const middleName = `QA${rand()}`;
 const secretNote = `internal-note-${rand()}`;
 
-async function quotedJob(unitPriceCents = 125050): Promise<JobRow> {
+/** 2 × €12.50 + 1.25 h × €45.00 @ 20%: exact lines 2500 + 5625 → net 8125, VAT 1625, total 9750. */
+async function quotedJob(): Promise<JobRow> {
   const job = await createJob(ownerDb, { vehicleId: vehicle.id, mechanicId: mechanic.id });
-  await addLine(ownerDb, { jobId: job.id, kind: "part", quantity: 2, unitPriceCents, description: "Brake pads" });
+  await addLine(ownerDb, { jobId: job.id, kind: "part", quantity: 2, unitPriceCents: 1250, description: "Brake pads" });
+  await addLine(ownerDb, { jobId: job.id, kind: "labour", quantity: "1.25", description: "Fitting" });
   return mustTransition(ownerDb, job.id, "quoted");
 }
 
-/** Customer-mode call that must fail without touching the job. */
-async function expectCustomerRejected(jobId: string, run: () => PromiseLike<{ data: unknown; error: unknown }>) {
+/** Customer-mode call that must fail without touching the job. Returns the error message. */
+async function expectCustomerRejected(
+  jobId: string,
+  run: () => PromiseLike<{ data: unknown; error: { message: string } | null }>,
+): Promise<string | undefined> {
   const before = await getJob(jobId);
   const events = await eventsFor(jobId);
   const { data, error } = await run();
@@ -53,13 +61,14 @@ async function expectCustomerRejected(jobId: string, run: () => PromiseLike<{ da
   expect(error).not.toBeNull();
   expect(await eventsFor(jobId)).toHaveLength(events.length);
   expect(await getJob(jobId)).toEqual(before);
+  return error?.message;
 }
 
 beforeAll(async () => {
-  [owner, mechanic] = await Promise.all([createStaff("owner", "Owner Olga"), createStaff("mechanic", "Mechanic Ben")]);
+  [owner, mechanic] = await Promise.all([createStaff("owner", "Owner Georgi"), createStaff("mechanic", "Mechanic Stoyan")]);
   [ownerDb, mechDb] = await Promise.all([signInAs(owner), signInAs(mechanic)]);
   await restoreSettings();
-  ({ customer, vehicle } = await createCustomerWithVehicle(admin, { fullName: `Juan ${middleName} Dela Cruz` }));
+  ({ customer, vehicle } = await createCustomerWithVehicle(admin, { fullName: `Ivan ${middleName} Georgiev` }));
 });
 
 afterAll(cleanup);
@@ -78,12 +87,30 @@ describe("FR6: link creation stores only the SHA-256 of a 32-byte token", () => 
     expect(JSON.stringify(rows)).not.toContain(token);
   });
 
-  it("D-015: no link for a job still in New", async () => {
-    const job = await createJob(ownerDb, { vehicleId: vehicle.id, mechanicId: mechanic.id });
-    await addLine(ownerDb, { jobId: job.id, kind: "part", quantity: 1, unitPriceCents: 100 });
-    const { error } = await ownerDb.rpc("create_job_link", { p_job_id: job.id, p_token_hash: newLinkToken().hash });
-    expect(error).not.toBeNull();
-    expect((await admin.from("job_links").select("id").eq("job_id", job.id)).data).toHaveLength(0);
+  it("D-053: linkable while Quoted, Declined, Approved, In progress or Ready; not while New, Collected or Cancelled", async () => {
+    const tryLink = (jobId: string) => ownerDb.rpc("create_job_link", { p_job_id: jobId, p_token_hash: newLinkToken().hash });
+
+    const fresh = await createJob(ownerDb, { vehicleId: vehicle.id, mechanicId: mechanic.id });
+    await addLine(ownerDb, { jobId: fresh.id, kind: "part", quantity: 1, unitPriceCents: 100 });
+    expect((await tryLink(fresh.id)).error?.message).toBe("not_linkable");
+
+    const job = await quotedJob();
+    const first = await createLink(ownerDb, job.id);
+    unwrap(await customerTransition(job.id, "declined", first.hash, 1), "decline");
+    expect((await tryLink(job.id)).error).toBeNull(); // declined
+    await mustTransition(ownerDb, job.id, "quoted");
+    const link = await createLink(ownerDb, job.id);
+    unwrap(await customerTransition(job.id, "approved", link.hash, 2), "approve");
+    for (const to of ["approved", "in_progress", "ready"] as JobStatus[]) {
+      if (to !== "approved") await mustTransition(ownerDb, job.id, to);
+      expect((await tryLink(job.id)).error).toBeNull();
+    }
+    await mustTransition(ownerDb, job.id, "collected");
+    expect((await tryLink(job.id)).error?.message).toBe("not_linkable");
+
+    const cancelled = await quotedJob();
+    await mustTransition(ownerDb, cancelled.id, "cancelled", "Customer sold the car");
+    expect((await tryLink(cancelled.id)).error?.message).toBe("not_linkable");
   });
 });
 
@@ -93,10 +120,12 @@ describe("FR6 AC3: the public DTO contains only whitelisted fields", () => {
 
   beforeAll(async () => {
     job = await quotedJob();
-    // A revise note that must never reach the customer.
-    await mustTransition(ownerDb, job.id, "new", secretNote);
-    job = await mustTransition(ownerDb, job.id, "quoted");
     link = await createLink(ownerDb, job.id);
+    // Notes that must never reach the customer: a phone-approval note and a rework note.
+    unwrap(await phoneApproval(ownerDb, job.id, 1, secretNote), "phone approval");
+    await advanceTo(ownerDb, job.id, "ready");
+    await mustTransition(ownerDb, job.id, "in_progress", `${secretNote}-rework`);
+    job = await getJob(job.id);
   });
 
   it("key sets equal PUBLIC_JOB_KEYS at every level, and toPublicJob strips nothing", async () => {
@@ -113,7 +142,7 @@ describe("FR6 AC3: the public DTO contains only whitelisted fields", () => {
       customer.phone.slice(-7),
       customer.email,
       middleName,
-      "Dela Cruz",
+      "Georgiev",
       owner.fullName,
       mechanic.fullName,
       owner.email,
@@ -129,22 +158,26 @@ describe("FR6 AC3: the public DTO contains only whitelisted fields", () => {
     expect(json).not.toMatch(UUID_RE);
   });
 
-  it("shows the whitelisted values: garage, ref, first name, lines, frozen totals, timeline", async () => {
+  it("shows garage, ref, version, first name, exact lines, net/VAT/total and a timeline marking the phone approval", async () => {
     const dto = (await publicJob(link.hash)).data;
     const settings = (await admin.from("settings").select("*").single()).data;
     expect(dto.garage).toEqual({ name: settings.garage_name, address: settings.garage_address, phone: settings.garage_phone });
-    expect(dto.job).toEqual({ ref: job.ref, status: "quoted" });
-    expect(dto.customer).toEqual({ first_name: "Juan" });
+    expect(dto.job).toEqual({ ref: job.ref, status: "in_progress", quote_version: 1 });
+    expect(dto.customer).toEqual({ first_name: "Ivan" });
     expect(dto.vehicle).toMatchObject({ make: "Toyota", model: "Vios" });
-    expect(dto.lines).toHaveLength(1);
-    expect(dto.lines[0]).toMatchObject({ description: "Brake pads", unit_price_cents: 125050, line_total_cents: 250100 });
-    expect(Number(dto.lines[0].quantity)).toBe(2);
-    expect(dto.totals).toEqual({
-      subtotal_cents: job.quoted_subtotal_cents,
-      vat_cents: job.quoted_vat_cents,
-      total_cents: job.quoted_total_cents,
-      vat_bps: job.vat_bps,
-    });
+    expect(dto.lines).toEqual([
+      { description: "Brake pads", quantity: "2.00", unit_price_cents: 1250, line_total_cents: 2500 },
+      { description: "Fitting", quantity: "1.25", unit_price_cents: 4500, line_total_cents: 5625 },
+    ]);
+    expect(dto.totals).toEqual({ subtotal_cents: 8125, vat_cents: 1625, total_cents: 9750, vat_bps: 2000 });
+    expect(dto.timeline.map((t: { status: string; channel: string | null }) => [t.status, t.channel])).toEqual([
+      ["new", null],
+      ["quoted", null],
+      ["approved", "phone"],
+      ["in_progress", null],
+      ["ready", null],
+      ["in_progress", null],
+    ]);
     for (const t of dto.timeline) {
       expect(JOB_STATUSES).toContain(t.status);
       expect(Number.isNaN(Date.parse(t.at))).toBe(false);
@@ -188,7 +221,7 @@ describe("FR6 AC2: modified, guessed, job-ref and UUID tokens find nothing", () 
   });
 });
 
-describe("FR6: regenerate, approve and decline through the link", () => {
+describe("FR6: regenerate, approve and decline through the link (version-bound, D-049)", () => {
   let job: JobRow;
   let oldLink: LinkToken, link: LinkToken;
   let other: JobRow;
@@ -197,7 +230,7 @@ describe("FR6: regenerate, approve and decline through the link", () => {
   beforeAll(async () => {
     job = await quotedJob();
     oldLink = await createLink(ownerDb, job.id);
-    other = await quotedJob(9900);
+    other = await quotedJob();
     otherLink = await createLink(ownerDb, other.id);
   });
 
@@ -211,137 +244,143 @@ describe("FR6: regenerate, approve and decline through the link", () => {
   });
 
   it("approve with the revoked token is rejected", async () => {
-    await expectCustomerRejected(job.id, () => customerTransition(job.id, "approved", oldLink.hash, null, job.quoted_total_cents));
+    expect(await expectCustomerRejected(job.id, () => customerTransition(job.id, "approved", oldLink.hash, 1))).toBe("not_found");
   });
 
   it("approve with another job's link is rejected (no event on either job)", async () => {
     const otherEvents = await eventsFor(other.id);
-    await expectCustomerRejected(job.id, () => customerTransition(job.id, "approved", otherLink.hash, null, job.quoted_total_cents));
+    await expectCustomerRejected(job.id, () => customerTransition(job.id, "approved", otherLink.hash, 1));
     expect(await eventsFor(other.id)).toHaveLength(otherEvents.length);
     expect((await getJob(other.id)).status).toBe("quoted");
   });
 
   it("customer mode is service-role only: anon and signed-in staff cannot use a link hash", async () => {
-    const args = {
-      p_job_id: job.id,
-      p_to_status: "approved",
-      p_note: null,
-      p_link_token_hash: link.hash,
-      p_expected_total_cents: job.quoted_total_cents,
-    };
+    const args = { p_job_id: job.id, p_to_status: "approved", p_note: null, p_link_token_hash: link.hash, p_expected_version: 1 };
     await expectCustomerRejected(job.id, () => anonClient().rpc("transition_job", args));
-    await expectCustomerRejected(job.id, () => ownerDb.rpc("transition_job", args));
-    await expectCustomerRejected(job.id, () => mechDb.rpc("transition_job", args));
+    expect(await expectCustomerRejected(job.id, () => ownerDb.rpc("transition_job", args))).toBe("forbidden");
+    expect(await expectCustomerRejected(job.id, () => mechDb.rpc("transition_job", args))).toBe("forbidden");
   });
 
   it("anon cannot look up, create links or transition", async () => {
     const anon = anonClient();
     expect((await anon.rpc("public_job_by_token_hash", { p_token_hash: link.hash })).error).not.toBeNull();
     expect((await anon.rpc("create_job_link", { p_job_id: job.id, p_token_hash: newLinkToken().hash })).error).not.toBeNull();
-    await expectCustomerRejected(job.id, () => transition(anon, job.id, "new"));
+    await expectCustomerRejected(job.id, () => transition(anon, job.id, "cancelled", "x"));
   });
 
-  it("D-037: Approve without the shown total, or with a different one, is quote_changed and changes nothing", async () => {
-    const total = job.quoted_total_cents!;
-    for (const expected of [undefined, null, 0, total - 1, total + 1]) {
-      const events = await eventsFor(job.id);
-      const { data, error } = await customerTransition(job.id, "approved", link.hash, null, expected);
-      expect(data).toBeNull();
-      expect(error?.message).toBe("quote_changed");
-      expect(await eventsFor(job.id)).toHaveLength(events.length);
-      expect((await getJob(job.id)).status).toBe("quoted");
+  it("Approve or Decline without the shown version, or with another one, is quote_changed and changes nothing", async () => {
+    for (const to of ["approved", "declined"] as const) {
+      for (const version of [undefined, null, 0, 2]) {
+        expect(await expectCustomerRejected(job.id, () => customerTransition(job.id, to, link.hash, version))).toBe("quote_changed");
+      }
     }
   });
 
-  it("customer Approve records approved_at/approved_total_cents and one customer event", async () => {
+  it("customer Approve stores the version's figures and one customer/link event", async () => {
     const before = await eventsFor(job.id);
-    const { data, error } = await customerTransition(job.id, "approved", link.hash, null, job.quoted_total_cents);
+    const { data, error } = await customerTransition(job.id, "approved", link.hash, 1);
     expect(error).toBeNull();
-    expect(data).toMatchObject({ status: "approved", approved_total_cents: job.quoted_total_cents });
+    expect(data).toMatchObject({
+      status: "approved",
+      approved_quote_version: 1,
+      approved_subtotal_cents: 8125,
+      approved_vat_cents: 1625,
+      approved_total_cents: 9750,
+    });
     expect(data.approved_at).not.toBeNull();
     const after = await eventsFor(job.id);
     expect(after).toHaveLength(before.length + 1);
-    expect(after[after.length - 1]).toMatchObject({
+    expect(after.at(-1)).toMatchObject({
       from_status: "quoted",
       to_status: "approved",
       actor_type: "customer",
       actor_id: null,
+      channel: "link",
+      quote_version: 1,
+      total_cents: 9750,
     });
     expect((await publicJob(link.hash)).data.job.status).toBe("approved");
   });
 
-  it("Approve is idempotent: a second call succeeds with no new event (a replay needs no total)", async () => {
+  it("Approve is idempotent for the same version (no new event); another version is quote_changed", async () => {
     const before = await eventsFor(job.id);
-    const { data, error } = await customerTransition(job.id, "approved", link.hash);
+    const { data, error } = await customerTransition(job.id, "approved", link.hash, 1);
     expect(error).toBeNull();
     expect(data.status).toBe("approved");
     expect(await eventsFor(job.id)).toHaveLength(before.length);
+    expect(await expectCustomerRejected(job.id, () => customerTransition(job.id, "approved", link.hash, 2))).toBe("quote_changed");
   });
 
-  it("the customer cannot move an approved job any further", async () => {
-    await expectCustomerRejected(job.id, () => customerTransition(job.id, "in_progress", link.hash));
+  it("the customer cannot decline or move an approved job any further", async () => {
+    expect(await expectCustomerRejected(job.id, () => customerTransition(job.id, "declined", link.hash, 1))).toBe("invalid_transition");
+    expect(await expectCustomerRejected(job.id, () => customerTransition(job.id, "in_progress", link.hash, 1))).toBe("invalid_transition");
   });
 
-  it("Decline with a reason returns the job to New with a customer event; idempotent", async () => {
+  it("Decline with a reason → Declined with a customer/link event; idempotent", async () => {
     const before = await eventsFor(other.id);
-    const { data, error } = await customerTransition(other.id, "new", otherLink.hash, "Too expensive");
+    const { data, error } = await customerTransition(other.id, "declined", otherLink.hash, 1, "Too expensive");
     expect(error).toBeNull();
-    expect(data).toMatchObject({ status: "new", quoted_total_cents: null, quoted_at: null });
+    expect(data).toMatchObject({ status: "declined", quote_version: 1, quoted_total_cents: 9750 });
     const after = await eventsFor(other.id);
     expect(after).toHaveLength(before.length + 1);
-    expect(after[after.length - 1]).toMatchObject({
+    expect(after.at(-1)).toMatchObject({
       from_status: "quoted",
-      to_status: "new",
+      to_status: "declined",
       actor_type: "customer",
       actor_id: null,
+      channel: "link",
+      quote_version: 1,
       note: "Too expensive",
     });
 
-    const again = await customerTransition(other.id, "new", otherLink.hash, "Too expensive");
+    const again = await customerTransition(other.id, "declined", otherLink.hash, 1, "Too expensive");
     expect(again.error).toBeNull();
     expect(await eventsFor(other.id)).toHaveLength(after.length);
   });
 
-  it("D-023: after Decline the link shows no lines/totals and cannot approve", async () => {
+  it("while Declined the page shows the declined quote (not lines being edited) and cannot approve", async () => {
+    await addLine(ownerDb, { jobId: other.id, kind: "part", quantity: 1, unitPriceCents: 99999, description: "Draft line" });
     const dto = (await publicJob(otherLink.hash)).data;
     expectWhitelistedKeys(dto);
-    expect(dto.job.status).toBe("new");
-    expect(dto.lines).toEqual([]);
-    expect(dto.totals).toBeNull();
-    await expectCustomerRejected(other.id, () => customerTransition(other.id, "approved", otherLink.hash));
+    expect(dto.job).toMatchObject({ status: "declined", quote_version: 1 });
+    expect(dto.lines.map((l: { description: string }) => l.description)).toEqual(["Brake pads", "Fitting"]);
+    expect(dto.totals.total_cents).toBe(9750);
+    expect(await expectCustomerRejected(other.id, () => customerTransition(other.id, "approved", otherLink.hash, 1))).toBe("invalid_transition");
+  });
+
+  it("FR7: a re-quote shows the new version through the same link, and only that version can be approved", async () => {
+    await mustTransition(ownerDb, other.id, "quoted");
+    const dto = (await publicJob(otherLink.hash)).data;
+    expect(dto.job).toMatchObject({ status: "quoted", quote_version: 2 });
+    expect(dto.lines.map((l: { description: string }) => l.description)).toEqual(["Brake pads", "Fitting", "Draft line"]);
+    expect(await expectCustomerRejected(other.id, () => customerTransition(other.id, "approved", otherLink.hash, 1))).toBe("quote_changed");
+    unwrap(await customerTransition(other.id, "approved", otherLink.hash, 2), "approve v2");
   });
 });
 
-describe("FR6 hardening", () => {
-  it("D-037: a quote re-sent after the customer opened the page cannot be approved at the old total", async () => {
+describe("FR6: stale page after extra work, and links never expire (D-053)", () => {
+  it("the customer's v1 page cannot approve after staff added work (v2); v2 can", async () => {
     const job = await quotedJob();
     const link = await createLink(ownerDb, job.id);
-    const shownTotal = job.quoted_total_cents;
-    await mustTransition(ownerDb, job.id, "new");
-    await addLine(ownerDb, { jobId: job.id, kind: "part", quantity: 1, unitPriceCents: 5000 });
-    const requoted = await mustTransition(ownerDb, job.id, "quoted");
-    expect(requoted.quoted_total_cents).not.toBe(shownTotal);
+    unwrap(await customerTransition(job.id, "approved", link.hash, 1), "approve v1");
+    await addLine(mechDb, { jobId: job.id, kind: "part", quantity: 1, unitPriceCents: 5000, description: "Extra" });
 
-    const stale = await customerTransition(job.id, "approved", link.hash, null, shownTotal);
-    expect(stale.error?.message).toBe("quote_changed");
-    expect((await getJob(job.id)).status).toBe("quoted");
-
-    const fresh = await customerTransition(job.id, "approved", link.hash, null, requoted.quoted_total_cents);
-    expect(fresh.error).toBeNull();
-    expect(fresh.data).toMatchObject({ status: "approved", approved_total_cents: requoted.quoted_total_cents });
+    expect(await expectCustomerRejected(job.id, () => customerTransition(job.id, "approved", link.hash, 1))).toBe("quote_changed");
+    const fresh = unwrap(await customerTransition(job.id, "approved", link.hash, 2), "approve v2");
+    expect(fresh).toMatchObject({ status: "approved", approved_quote_version: 2, approved_subtotal_cents: 13125 });
   });
 
-  it("D-015: a link stops working 30 days after collection", async () => {
+  it("a link keeps working long after collection", async () => {
     const job = await quotedJob();
     const link = await createLink(ownerDb, job.id);
-    unwrapOk(await customerTransition(job.id, "approved", link.hash, null, job.quoted_total_cents));
-    for (const to of ["in_progress", "ready", "collected"] as const) await mustTransition(ownerDb, job.id, to);
-    const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString();
+    unwrap(await customerTransition(job.id, "approved", link.hash, 1), "approve");
+    await advanceTo(ownerDb, job.id, "collected");
+    const yearsAgo = new Date(Date.now() - 2 * 365 * 86_400_000).toISOString();
+    unwrap(await admin.from("jobs").update({ collected_at: yearsAgo }).eq("id", job.id).select(), "backdate");
 
-    await admin.from("jobs").update({ collected_at: daysAgo(29) }).eq("id", job.id);
-    expect((await publicJob(link.hash)).data).not.toBeNull();
-    await admin.from("jobs").update({ collected_at: daysAgo(31) }).eq("id", job.id);
-    expect((await publicJob(link.hash)).data).toBeNull();
+    expect((await publicJob(link.hash)).data.job.status).toBe("collected");
+    // A replay of the old approval is still a harmless no-op.
+    expect((await customerTransition(job.id, "approved", link.hash, 1)).error).toBeNull();
   });
 
   it("D-012: rate_limit_hit is true only once the count exceeds p_max in the window", async () => {
@@ -355,10 +394,6 @@ describe("FR6 hardening", () => {
   });
 });
 
-function unwrapOk(res: { error: { message: string } | null }) {
-  expect(res.error).toBeNull();
-}
-
 describe("D-039: revoke_job_link switches the link off in any status", () => {
   let otherMechDb: Db;
 
@@ -368,31 +403,36 @@ describe("D-039: revoke_job_link switches the link off in any status", () => {
 
   const revoke = (db: Db, jobId: string) => db.rpc("revoke_job_link", { p_job_id: jobId });
 
-  it("works while the quote is being revised (New); a second revoke returns false", async () => {
+  it("works while Declined; a second revoke returns false", async () => {
     const job = await quotedJob();
     const link = await createLink(ownerDb, job.id);
-    await mustTransition(ownerDb, job.id, "new");
-    expect((await publicJob(link.hash)).data).not.toBeNull(); // D-023: the link survives a revise
+    unwrap(await customerTransition(job.id, "declined", link.hash, 1), "decline");
+    expect((await publicJob(link.hash)).data).not.toBeNull();
 
     expect(await revoke(mechDb, job.id)).toMatchObject({ data: true, error: null });
     expect((await publicJob(link.hash)).data).toBeNull();
     expect(await revoke(mechDb, job.id)).toMatchObject({ data: false, error: null });
   });
 
-  it("works on approved and collected jobs; the old hash then finds nothing", async () => {
+  it("works on approved, collected and cancelled jobs; the old hash then finds nothing", async () => {
     const job = await quotedJob();
     const first = await createLink(ownerDb, job.id);
-    unwrapOk(await customerTransition(job.id, "approved", first.hash, null, job.quoted_total_cents));
+    unwrap(await customerTransition(job.id, "approved", first.hash, 1), "approve");
     expect(await revoke(ownerDb, job.id)).toMatchObject({ data: true, error: null });
     expect((await publicJob(first.hash)).data).toBeNull();
 
     const second = await createLink(ownerDb, job.id);
-    for (const to of ["in_progress", "ready", "collected"] as const) await mustTransition(ownerDb, job.id, to);
+    await advanceTo(ownerDb, job.id, "collected");
     expect((await publicJob(second.hash)).data).not.toBeNull();
     expect(await revoke(ownerDb, job.id)).toMatchObject({ data: true, error: null });
     expect((await publicJob(second.hash)).data).toBeNull();
-    const active = (await admin.from("job_links").select("id").eq("job_id", job.id).is("revoked_at", null)).data;
-    expect(active).toHaveLength(0);
+
+    const cancelled = await quotedJob();
+    const third = await createLink(ownerDb, cancelled.id);
+    await mustTransition(ownerDb, cancelled.id, "cancelled", "Customer moved away");
+    expect((await publicJob(third.hash)).data.job.status).toBe("cancelled");
+    expect(await revoke(ownerDb, cancelled.id)).toMatchObject({ data: true, error: null });
+    expect((await publicJob(third.hash)).data).toBeNull();
   });
 
   it("another mechanic gets not_found and the link stays active; anon cannot call it", async () => {

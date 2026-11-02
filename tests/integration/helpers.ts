@@ -25,10 +25,14 @@ export interface JobRow {
   description: string;
   status: JobStatus;
   vat_bps: number;
+  quote_version: number | null;
   quoted_subtotal_cents: number | null;
   quoted_vat_cents: number | null;
   quoted_total_cents: number | null;
   quoted_at: string | null;
+  approved_quote_version: number | null;
+  approved_subtotal_cents: number | null;
+  approved_vat_cents: number | null;
   approved_total_cents: number | null;
   approved_at: string | null;
   collected_at: string | null;
@@ -43,6 +47,7 @@ export interface LineRow {
   description: string;
   quantity: number | string;
   unit_price_cents: number;
+  /** Exact (numeric(16,2)), may be fractional cents (D-048). */
   line_total_cents: number;
 }
 
@@ -53,11 +58,28 @@ export interface EventRow {
   to_status: JobStatus;
   actor_type: "staff" | "customer";
   actor_id: string | null;
+  channel: "link" | "phone" | null;
+  quote_version: number | null;
+  total_cents: number | null;
   note: string | null;
   created_at: string;
 }
 
-export const DEFAULT_SETTINGS = { hourly_rate_cents: 100000, vat_bps: 1200 } as const;
+export interface QuoteRow {
+  id: number;
+  job_id: string;
+  version: number;
+  subtotal_cents: number;
+  vat_cents: number;
+  total_cents: number;
+  vat_bps: number;
+  lines: { id: string; kind: string; description: string; quantity: string; unit_price_cents: number; line_total_cents: number }[];
+  created_by: string;
+  created_at: string;
+}
+
+/** €45.00/h, VAT 20% (PRD §8). */
+export const DEFAULT_SETTINGS = { hourly_rate_cents: 4500, vat_bps: 2000 } as const;
 
 function env(name: string): string {
   const v = process.env[name];
@@ -87,9 +109,10 @@ export function unwrap<T>(res: { data: T; error: DbError }, what: string): NonNu
 export const rand = (): string => randomBytes(4).toString("hex");
 const letters = (n: number) => Array.from({ length: n }, () => String.fromCharCode(65 + randomInt(26))).join("");
 const digits = (n: number) => Array.from({ length: n }, () => randomInt(10)).join("");
-/** Unnormalised, as typed by staff: "QZK 4821". */
-export const randomPlate = (): string => `${letters(3)} ${digits(4)}`;
-export const randomPhone = (): string => `09${digits(9)}`;
+/** Unnormalised Bulgarian layout, as typed by staff: "CA 4521 KM". */
+export const randomPlate = (): string => `${letters(2)} ${digits(4)} ${letters(2)}`;
+/** National mobile format "08…" (10 digits); stored as "3598…" (D-055). */
+export const randomPhone = (): string => `08${digits(8)}`;
 
 // Rows created by this test file (vitest isolates modules per file), deleted by cleanup().
 const created = { users: [] as string[], customers: [] as string[], vehicles: [] as string[], jobs: [] as string[] };
@@ -208,21 +231,31 @@ export function transition(db: Db, jobId: string, to: JobStatus, note?: string) 
 
 /**
  * Customer mode (D-009): service role + the link's token hash, as the public server action does. Raw result.
- * Approve needs the quoted total the customer saw (D-037); omitted means the argument is not sent.
+ * Approve/decline name the quote version the page showed (D-049); undefined means the argument is not sent.
  */
 export function customerTransition(
   jobId: string,
   to: JobStatus,
   tokenHash: string,
+  expectedVersion: number | null | undefined,
   note: string | null = null,
-  expectedTotalCents?: number | null,
 ) {
   return admin.rpc("transition_job", {
     p_job_id: jobId,
     p_to_status: to,
     p_note: note,
     p_link_token_hash: tokenHash,
-    ...(expectedTotalCents === undefined ? {} : { p_expected_total_cents: expectedTotalCents }),
+    ...(expectedVersion === undefined ? {} : { p_expected_version: expectedVersion }),
+  });
+}
+
+/** Owner phone approval (D-051): staff mode, note required, version the owner saw. Raw result. */
+export function phoneApproval(db: Db, jobId: string, expectedVersion: number | null, note: string | null) {
+  return db.rpc("transition_job", {
+    p_job_id: jobId,
+    p_to_status: "approved",
+    p_note: note,
+    p_expected_version: expectedVersion,
   });
 }
 
@@ -262,7 +295,7 @@ export async function advanceTo(staff: Db, jobId: string, target: JobStatus): Pr
     if (!next) throw new Error(`cannot advance from ${job.status} to ${target}`);
     if (next === "approved") {
       link ??= await createLink(staff, jobId);
-      job = unwrap(await customerTransition(jobId, "approved", link.hash, null, job.quoted_total_cents), "customer approve");
+      job = unwrap(await customerTransition(jobId, "approved", link.hash, job.quote_version), "customer approve");
     } else {
       job = await mustTransition(staff, jobId, next);
     }
@@ -276,6 +309,10 @@ export async function getJob(jobId: string): Promise<JobRow> {
 
 export async function linesFor(jobId: string): Promise<LineRow[]> {
   return unwrap(await admin.from("job_line_items").select("*").eq("job_id", jobId).order("id"), "select lines");
+}
+
+export async function quotesFor(jobId: string): Promise<QuoteRow[]> {
+  return unwrap(await admin.from("job_quotes").select("*").eq("job_id", jobId).order("version"), "select quotes");
 }
 
 export async function eventsFor(jobId: string): Promise<EventRow[]> {

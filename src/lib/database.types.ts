@@ -3,25 +3,7 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 
 export type Database = {
   
-  "graphql_public": {
-          Tables: {
-            [_ in never]: never
-          }
-          Views: {
-            [_ in never]: never
-          }
-          Functions: {
-            "graphql":
-{ Args: { "extensions"?: Json,"operationName"?: string,"query"?: string,"variables"?: Json }; Returns: Json
-                           }
-          }
-          Enums: {
-            [_ in never]: never
-          }
-          CompositeTypes: {
-            [_ in never]: never
-          }
-        },"public": {
+  "public": {
           Tables: {
             "customers": {
                   Row: {
@@ -39,14 +21,14 @@ export type Database = {
                   ]
                 },"job_events": {
                   Row: {
-                    "actor_id": string | null,"actor_type": Database["public"]['Enums']["actor_type"],"created_at": string,"from_status": Database["public"]['Enums']["job_status"] | null,"id": number,"job_id": string,"note": string | null,"to_status": Database["public"]['Enums']["job_status"]
+                    "actor_id": string | null,"actor_type": Database["public"]['Enums']["actor_type"],"channel": Database["public"]['Enums']["approval_channel"] | null,"created_at": string,"from_status": Database["public"]['Enums']["job_status"] | null,"id": number,"job_id": string,"note": string | null,"quote_version": number | null,"to_status": Database["public"]['Enums']["job_status"],"total_cents": number | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "actor_id"?: string | null,"actor_type": Database["public"]['Enums']["actor_type"],"created_at"?: string,"from_status"?: Database["public"]['Enums']["job_status"] | null,"id"?: never,"job_id": string,"note"?: string | null,"to_status": Database["public"]['Enums']["job_status"]
+                    "actor_id"?: string | null,"actor_type": Database["public"]['Enums']["actor_type"],"channel"?: Database["public"]['Enums']["approval_channel"] | null,"created_at"?: string,"from_status"?: Database["public"]['Enums']["job_status"] | null,"id"?: never,"job_id": string,"note"?: string | null,"quote_version"?: number | null,"to_status": Database["public"]['Enums']["job_status"],"total_cents"?: number | null
                   }
                   Update: {
-                    "actor_id"?: string | null,"actor_type"?: Database["public"]['Enums']["actor_type"],"created_at"?: string,"from_status"?: Database["public"]['Enums']["job_status"] | null,"id"?: never,"job_id"?: string,"note"?: string | null,"to_status"?: Database["public"]['Enums']["job_status"]
+                    "actor_id"?: string | null,"actor_type"?: Database["public"]['Enums']["actor_type"],"channel"?: Database["public"]['Enums']["approval_channel"] | null,"created_at"?: string,"from_status"?: Database["public"]['Enums']["job_status"] | null,"id"?: never,"job_id"?: string,"note"?: string | null,"quote_version"?: number | null,"to_status"?: Database["public"]['Enums']["job_status"],"total_cents"?: number | null
                   }
                   Relationships: [
                     {
@@ -127,16 +109,48 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
-                },"jobs": {
+                },"job_quotes": {
                   Row: {
-                    "approved_at": string | null,"approved_total_cents": number | null,"assigned_mechanic_id": string,"collected_at": string | null,"created_at": string,"created_by": string,"description": string,"id": string,"quoted_at": string | null,"quoted_subtotal_cents": number | null,"quoted_total_cents": number | null,"quoted_vat_cents": number | null,"ref": string,"status": Database["public"]['Enums']["job_status"],"vat_bps": number,"vehicle_id": string
+                    "created_at": string,"created_by": string,"id": number,"job_id": string,"lines": NonNullable<Json>,"subtotal_cents": number,"total_cents": number,"vat_bps": number,"vat_cents": number,"version": number
                   }
                   ComputedFields: never
                   Insert: {
-                    "approved_at"?: string | null,"approved_total_cents"?: number | null,"assigned_mechanic_id": string,"collected_at"?: string | null,"created_at"?: string,"created_by"?: string,"description": string,"id"?: string,"quoted_at"?: string | null,"quoted_subtotal_cents"?: number | null,"quoted_total_cents"?: number | null,"quoted_vat_cents"?: number | null,"ref"?: string,"status"?: Database["public"]['Enums']["job_status"],"vat_bps"?: number,"vehicle_id": string
+                    "created_at"?: string,"created_by": string,"id"?: never,"job_id": string,"lines": NonNullable<Json>,"subtotal_cents": number,"total_cents": number,"vat_bps": number,"vat_cents": number,"version": number
                   }
                   Update: {
-                    "approved_at"?: string | null,"approved_total_cents"?: number | null,"assigned_mechanic_id"?: string,"collected_at"?: string | null,"created_at"?: string,"created_by"?: string,"description"?: string,"id"?: string,"quoted_at"?: string | null,"quoted_subtotal_cents"?: number | null,"quoted_total_cents"?: number | null,"quoted_vat_cents"?: number | null,"ref"?: string,"status"?: Database["public"]['Enums']["job_status"],"vat_bps"?: number,"vehicle_id"?: string
+                    "created_at"?: string,"created_by"?: string,"id"?: never,"job_id"?: string,"lines"?: NonNullable<Json>,"subtotal_cents"?: number,"total_cents"?: number,"vat_bps"?: number,"vat_cents"?: number,"version"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "job_quotes_created_by_fkey"
+      columns: ["created_by"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "job_quotes_job_id_fkey"
+      columns: ["job_id"]
+isOneToOne: false
+      referencedRelation: "job_totals"
+      referencedColumns: ["job_id"]
+    },{
+      foreignKeyName: "job_quotes_job_id_fkey"
+      columns: ["job_id"]
+isOneToOne: false
+      referencedRelation: "jobs"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"jobs": {
+                  Row: {
+                    "approved_at": string | null,"approved_quote_version": number | null,"approved_subtotal_cents": number | null,"approved_total_cents": number | null,"approved_vat_cents": number | null,"assigned_mechanic_id": string,"collected_at": string | null,"created_at": string,"created_by": string,"description": string,"id": string,"quote_version": number | null,"quoted_at": string | null,"quoted_subtotal_cents": number | null,"quoted_total_cents": number | null,"quoted_vat_cents": number | null,"ref": string,"status": Database["public"]['Enums']["job_status"],"vat_bps": number,"vehicle_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "approved_at"?: string | null,"approved_quote_version"?: number | null,"approved_subtotal_cents"?: number | null,"approved_total_cents"?: number | null,"approved_vat_cents"?: number | null,"assigned_mechanic_id": string,"collected_at"?: string | null,"created_at"?: string,"created_by"?: string,"description": string,"id"?: string,"quote_version"?: number | null,"quoted_at"?: string | null,"quoted_subtotal_cents"?: number | null,"quoted_total_cents"?: number | null,"quoted_vat_cents"?: number | null,"ref"?: string,"status"?: Database["public"]['Enums']["job_status"],"vat_bps"?: number,"vehicle_id": string
+                  }
+                  Update: {
+                    "approved_at"?: string | null,"approved_quote_version"?: number | null,"approved_subtotal_cents"?: number | null,"approved_total_cents"?: number | null,"approved_vat_cents"?: number | null,"assigned_mechanic_id"?: string,"collected_at"?: string | null,"created_at"?: string,"created_by"?: string,"description"?: string,"id"?: string,"quote_version"?: number | null,"quoted_at"?: string | null,"quoted_subtotal_cents"?: number | null,"quoted_total_cents"?: number | null,"quoted_vat_cents"?: number | null,"ref"?: string,"status"?: Database["public"]['Enums']["job_status"],"vat_bps"?: number,"vehicle_id"?: string
                   }
                   Relationships: [
                     {
@@ -193,7 +207,7 @@ isOneToOne: false
                   }
                   ComputedFields: never
                   Insert: {
-                    "currency"?: string,"garage_address": string,"garage_name": string,"garage_phone": string,"hourly_rate_cents": number,"id"?: number,"timezone"?: string,"vat_bps": number
+                    "currency"?: string,"garage_address": string,"garage_name": string,"garage_phone": string,"hourly_rate_cents": number,"id"?: number,"timezone"?: string,"vat_bps"?: number
                   }
                   Update: {
                     "currency"?: string,"garage_address"?: string,"garage_name"?: string,"garage_phone"?: string,"hourly_rate_cents"?: number,"id"?: number,"timezone"?: string,"vat_bps"?: number
@@ -240,6 +254,9 @@ isOneToOne: false
               "subtotal_cents": number,"total_cents": number,"vat_cents": number
             }[]
                            },
+"create_customer":
+{ Args: { "p_email"?: string,"p_full_name": string,"p_make": string,"p_model": string,"p_phone": string,"p_plate": string,"p_year"?: number }; Returns: string
+                           },
 "create_job_link":
 { Args: { "p_job_id": string,"p_token_hash": string }; Returns: string
                            },
@@ -261,15 +278,19 @@ isOneToOne: false
             }[]
                            },
 "transition_job":
-{ Args: { "p_expected_total_cents"?: number,"p_job_id": string,"p_link_token_hash"?: string,"p_note"?: string,"p_to_status": Database["public"]['Enums']["job_status"] }; Returns: {
+{ Args: { "p_expected_version"?: number,"p_job_id": string,"p_link_token_hash"?: string,"p_note"?: string,"p_to_status": Database["public"]['Enums']["job_status"] }; Returns: {
               "approved_at": string | null,
+"approved_quote_version": number | null,
+"approved_subtotal_cents": number | null,
 "approved_total_cents": number | null,
+"approved_vat_cents": number | null,
 "assigned_mechanic_id": string,
 "collected_at": string | null,
 "created_at": string,
 "created_by": string,
 "description": string,
 "id": string,
+"quote_version": number | null,
 "quoted_at": string | null,
 "quoted_subtotal_cents": number | null,
 "quoted_total_cents": number | null,
@@ -287,7 +308,7 @@ isOneToOne: false
       } }
           }
           Enums: {
-            "actor_type": "staff"|"customer","job_status": "new"|"quoted"|"approved"|"in_progress"|"ready"|"collected","line_kind": "labour"|"part","staff_role": "owner"|"mechanic"
+            "actor_type": "staff"|"customer","approval_channel": "link"|"phone","job_status": "new"|"quoted"|"declined"|"approved"|"in_progress"|"ready"|"collected"|"cancelled","line_kind": "labour"|"part","staff_role": "owner"|"mechanic"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -401,13 +422,9 @@ export type CompositeTypes<
   : never
 
 export const Constants = {
-  "graphql_public": {
+  "public": {
           Enums: {
-            
-          }
-        },"public": {
-          Enums: {
-            "actor_type": ["staff", "customer"],"job_status": ["new", "quoted", "approved", "in_progress", "ready", "collected"],"line_kind": ["labour", "part"],"staff_role": ["owner", "mechanic"]
+            "actor_type": ["staff", "customer"],"approval_channel": ["link", "phone"],"job_status": ["new", "quoted", "declined", "approved", "in_progress", "ready", "collected", "cancelled"],"line_kind": ["labour", "part"],"staff_role": ["owner", "mechanic"]
           }
         }
 } as const

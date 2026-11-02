@@ -14,7 +14,7 @@
     "test:e2e": "playwright test",
     "db:start": "supabase start",
     "db:reset": "supabase db reset",
-    "db:types": "supabase gen types typescript --local > src/lib/database.types.ts",
+    "db:types": "node scripts/db-types.mjs",
     "secrets:scan": "node scripts/secrets-scan.mjs",
     "bundle:scan": "node scripts/check-bundle-secrets.mjs",
     "credentials:generate": "tsx scripts/generate-credentials.ts",

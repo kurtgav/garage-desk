@@ -20,7 +20,10 @@ import {
   mustTransition,
   newLinkToken,
   rand,
+  randomPhone,
+  randomPlate,
   signInAs,
+  unwrap,
   transition,
 } from "./helpers";
 
@@ -74,7 +77,7 @@ describe("FR1 AC1: a mechanic gets not-found and no data for another mechanic's 
 
   // Select a column every role may read (job_links.token_hash is not client-readable at all),
   // so an empty result proves RLS filtering rather than a privilege error.
-  it.each(["job_line_items", "job_events", "job_links", "job_totals"])("cannot see its %s", async (table) => {
+  it.each(["job_line_items", "job_events", "job_links", "job_totals", "job_quotes"])("cannot see its %s", async (table) => {
     const { data, error } = await bDb.from(table).select("job_id").eq("job_id", quotedJob.id);
     expect(error).toBeNull();
     expect(data).toHaveLength(0);
@@ -86,9 +89,10 @@ describe("FR1 AC1: a mechanic gets not-found and no data for another mechanic's 
     expect(error).not.toBeNull();
   });
 
-  it("cannot see its customer or vehicle", async () => {
-    expect((await bDb.from("customers").select("*").eq("id", customerId)).data ?? []).toHaveLength(0);
-    expect((await bDb.from("vehicles").select("*").eq("id", vehicleId)).data ?? []).toHaveLength(0);
+  it("D-054: sees its customer and vehicle in the shared directory, but never the job", async () => {
+    expect((await bDb.from("customers").select("id").eq("id", customerId)).data).toHaveLength(1);
+    expect((await bDb.from("vehicles").select("id").eq("id", vehicleId)).data).toHaveLength(1);
+    expect((await bDb.from("jobs").select("id").eq("vehicle_id", vehicleId)).data ?? []).toHaveLength(0);
   });
 
   it("transition_job raises not_found (same as a missing id) and writes no event", async () => {
@@ -117,7 +121,7 @@ describe("FR1 AC1: a mechanic gets not-found and no data for another mechanic's 
         p_job_id: jobId,
         p_to_status: "approved",
         p_link_token_hash: link.hash,
-        p_expected_total_cents: quotedJob.quoted_total_cents,
+        p_expected_version: 1,
       });
       expect(data).toBeNull();
       expect(error?.message).toBe("forbidden");
@@ -151,7 +155,7 @@ describe("FR1 AC1: a mechanic gets not-found and no data for another mechanic's 
   });
 });
 
-describe("FR1 AC2 (DB side): settings, dashboard and the customer directory are owner-only", () => {
+describe("FR1 AC2 (DB side): settings, dashboard and customer deletion are owner-only", () => {
   it("mechanic cannot read settings (owner can)", async () => {
     expect((await ownerDb.from("settings").select("*")).data).toHaveLength(1);
     expect((await aDb.from("settings").select("*")).data ?? []).toHaveLength(0);
@@ -171,21 +175,80 @@ describe("FR1 AC2 (DB side): settings, dashboard and the customer directory are 
     expect(error?.message).toMatch(/forbidden/);
   });
 
-  it("mechanic sees only customers on their own jobs", async () => {
-    const { data } = await aDb.from("customers").select("id");
-    expect((data ?? []).map((c) => c.id)).toEqual([customerId]);
-    expect((await bDb.from("customers").select("id")).data ?? []).toHaveLength(0);
+  it("mechanic cannot delete a customer (owner only)", async () => {
+    const { data } = await aDb.from("customers").delete().eq("id", customerId).select();
+    expect(data ?? []).toHaveLength(0);
+    expect((await admin.from("customers").select("id").eq("id", customerId)).data).toHaveLength(1);
+  });
+});
+
+describe("D-054: mechanics create customers, vehicles and jobs; only the owner reassigns", () => {
+  it("a mechanic creates a customer with a vehicle and can edit them", async () => {
+    const tag = rand();
+    const { data: id, error } = await aDb.rpc("create_customer", {
+      p_full_name: `Petar QA${tag} Ivanov`,
+      p_phone: randomPhone(),
+      p_plate: randomPlate(),
+      p_make: "Skoda",
+      p_model: "Octavia",
+    });
+    expect(error).toBeNull();
+    try {
+      const upd = await aDb.from("customers").update({ email: `p${tag}@mail.test` }).eq("id", id).select("id");
+      expect(upd.data).toHaveLength(1);
+    } finally {
+      await admin.from("customers").delete().eq("id", id);
+    }
   });
 
-  it("PRD Q7: mechanic cannot create customers or jobs", async () => {
-    const tag = `qa-forbidden-${rand()}`;
-    const cust = await aDb.from("customers").insert({ full_name: tag, phone: "09170000000" });
-    const job = await aDb.from("jobs").insert({ vehicle_id: vehicleId, assigned_mechanic_id: mechA.id, description: tag });
-    // Remove anything that slipped through so cleanup stays simple.
-    await admin.from("jobs").delete().eq("description", tag);
-    await admin.from("customers").delete().eq("full_name", tag);
-    expect(cust.error).not.toBeNull();
-    expect(job.error).not.toBeNull();
+  it("a mechanic's new job is always assigned to them", async () => {
+    const job = unwrap(
+      await aDb.from("jobs").insert({ vehicle_id: vehicleId, assigned_mechanic_id: mechB.id, description: `qa ${rand()}` }).select().single(),
+      "mechanic job",
+    );
+    try {
+      expect(job.assigned_mechanic_id).toBe(mechA.id);
+      expect(job.created_by).toBe(mechA.id);
+      expect((await bDb.from("jobs").select("id").eq("id", job.id)).data).toHaveLength(0);
+    } finally {
+      await admin.from("jobs").delete().eq("id", job.id);
+    }
+  });
+
+  it("a mechanic cannot reassign their job (forbidden); the owner can", async () => {
+    const { error } = await aDb.from("jobs").update({ assigned_mechanic_id: mechB.id }).eq("id", newJob.id);
+    expect(error?.message).toBe("forbidden");
+    expect((await getJob(newJob.id)).assigned_mechanic_id).toBe(mechA.id);
+
+    unwrap(await ownerDb.from("jobs").update({ assigned_mechanic_id: mechB.id }).eq("id", newJob.id).select(), "reassign");
+    expect((await bDb.from("jobs").select("id").eq("id", newJob.id)).data).toHaveLength(1);
+    expect((await aDb.from("jobs").select("id").eq("id", newJob.id)).data).toHaveLength(0);
+    unwrap(await ownerDb.from("jobs").update({ assigned_mechanic_id: mechA.id }).eq("id", newJob.id).select(), "reassign back");
+  });
+
+  it("the assigned mechanic can edit the job description", async () => {
+    const { data } = await aDb.from("jobs").update({ description: "Updated by mechanic" }).eq("id", newJob.id).select("description");
+    expect(data).toEqual([{ description: "Updated by mechanic" }]);
+  });
+});
+
+describe("D-069: staff write only the customer/vehicle columns the app uses", () => {
+  it("moving a vehicle to another customer, or setting id/created_at, is refused (42501)", async () => {
+    const other = (await createCustomerWithVehicle(admin)).customer.id;
+    const attempts = [
+      () => ownerDb.from("vehicles").update({ customer_id: other }).eq("id", vehicleId).select(),
+      () => ownerDb.from("vehicles").update({ id: randomUUID() }).eq("id", vehicleId).select(),
+      () => ownerDb.from("customers").update({ created_at: "2020-01-01T00:00:00Z" }).eq("id", customerId).select(),
+      () => ownerDb.from("customers").insert({ id: randomUUID(), full_name: "Id Chooser", phone: randomPhone() }).select(),
+      () => ownerDb.from("customers").insert({ full_name: "Backdater", phone: randomPhone(), created_at: "2020-01-01T00:00:00Z" }).select(),
+    ];
+    for (const run of attempts) expect((await run()).error?.code).toBe("42501");
+    expect((await admin.from("vehicles").select("customer_id").eq("id", vehicleId).single()).data?.customer_id).toBe(customerId);
+  });
+
+  it("the allowed columns still work for staff (vehicle details, customer contact)", async () => {
+    unwrap(await aDb.from("vehicles").update({ make: "Toyota", model: "Vios", year: 2019 }).eq("id", vehicleId).select(), "vehicle");
+    unwrap(await aDb.from("customers").update({ email: `ok-${rand()}@mail.test` }).eq("id", customerId).select(), "customer");
   });
 });
 
@@ -195,6 +258,9 @@ describe("FR1 / D-009: status and frozen money columns cannot be written directl
     { quoted_total_cents: 1 },
     { approved_total_cents: 1 },
     { approved_at: "2026-01-01T00:00:00Z" },
+    { quote_version: 9 },
+    { approved_quote_version: 1 },
+    { approved_subtotal_cents: 1 },
     { collected_at: "2026-01-01T00:00:00Z" },
   ])("owner update %j is rejected", async (patch) => {
     const before = await getJob(quotedJob.id);
@@ -214,6 +280,7 @@ describe("FR1: anonymous (no session) sees nothing", () => {
     "job_line_items",
     "job_events",
     "job_links",
+    "job_quotes",
     "job_totals",
     "rate_limits",
   ];
