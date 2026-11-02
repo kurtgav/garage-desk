@@ -175,14 +175,14 @@ isOneToOne: false
                   ]
                 },"profiles": {
                   Row: {
-                    "active": boolean,"full_name": string,"id": string,"role": Database["public"]['Enums']["staff_role"]
+                    "about": string | null,"active": boolean,"avatar_path": string | null,"full_name": string,"id": string,"phone": string | null,"role": Database["public"]['Enums']["staff_role"],"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "active"?: boolean,"full_name": string,"id": string,"role": Database["public"]['Enums']["staff_role"]
+                    "about"?: string | null,"active"?: boolean,"avatar_path"?: string | null,"full_name": string,"id": string,"phone"?: string | null,"role": Database["public"]['Enums']["staff_role"],"updated_at"?: string
                   }
                   Update: {
-                    "active"?: boolean,"full_name"?: string,"id"?: string,"role"?: Database["public"]['Enums']["staff_role"]
+                    "about"?: string | null,"active"?: boolean,"avatar_path"?: string | null,"full_name"?: string,"id"?: string,"phone"?: string | null,"role"?: Database["public"]['Enums']["staff_role"],"updated_at"?: string
                   }
                   Relationships: [
                     
@@ -276,6 +276,9 @@ isOneToOne: false
 { Args: { "p_query": string }; Returns: {
               "email": string,"full_name": string,"id": string,"phone": string,"vehicles": Json
             }[]
+                           },
+"set_staff_active":
+{ Args: { "p_active": boolean,"p_profile_id": string }; Returns: undefined
                            },
 "transition_job":
 { Args: { "p_expected_version"?: number,"p_job_id": string,"p_link_token_hash"?: string,"p_note"?: string,"p_to_status": Database["public"]['Enums']["job_status"] }; Returns: {

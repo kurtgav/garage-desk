@@ -7,6 +7,10 @@ export const LIMITS = {
   publicView: { max: 60, windowSeconds: 60 },
   publicAction: { max: 10, windowSeconds: 60 },
   login: { max: 10, windowSeconds: 300 },
+  // Each request may send an email (forgot password), so it is stricter than sign-in.
+  passwordReset: { max: 5, windowSeconds: 900 },
+  // Checks the current password (a sign-in attempt), so the same budget as sign-in.
+  passwordChange: { max: 10, windowSeconds: 300 },
 } as const;
 
 async function clientIp(): Promise<string> {

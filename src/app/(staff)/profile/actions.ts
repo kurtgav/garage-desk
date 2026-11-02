@@ -1,0 +1,127 @@
+"use server";
+
+import { randomUUID } from "node:crypto";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { requireStaff } from "@/lib/auth";
+import { GENERIC_ERROR, staffErrorMessage, TOO_MANY_ATTEMPTS } from "@/lib/data/errors";
+import { AVATAR_BUCKET } from "@/lib/data/profile";
+import type { ActionResult } from "@/lib/data/types";
+import { fail, optionalText, parseForm } from "@/lib/form";
+import { newPasswordSchema, passwordErrorMessage } from "@/lib/password";
+import { isRateLimited } from "@/lib/rate-limit";
+import { createClient, createStatelessClient } from "@/lib/supabase/server";
+
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+
+const detailsSchema = z.object({
+  full_name: z
+    .string("Enter your name.")
+    .trim()
+    .min(1, "Enter your name.")
+    .max(100, "Keep your name to 100 characters or fewer."),
+  phone: optionalText(30, "Keep the phone number to 30 characters or fewer."),
+  about: optionalText(500, "Keep the about text to 500 characters or fewer."),
+});
+
+/** Own name, phone and about. RLS profiles_update_self + the column grant are the boundary (D-076). */
+export async function updateProfile(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+  const staff = await requireStaff();
+  const input = parseForm(detailsSchema, formData);
+  if ("error" in input) return input;
+
+  const db = await createClient();
+  const { data, error } = await db
+    .from("profiles")
+    .update({ full_name: input.data.full_name, phone: input.data.phone ?? null, about: input.data.about ?? null })
+    .eq("id", staff.id)
+    .select("id");
+  if (error || data.length === 0) return fail(staffErrorMessage(error));
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** File signatures of the accepted formats; the bucket also refuses anything else (D-078). No SVG. */
+function sniffImage(bytes: Uint8Array): { mime: string; ext: string } | null {
+  const starts = (sig: number[], at = 0) => sig.every((b, i) => bytes[at + i] === b);
+  if (starts([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return { mime: "image/png", ext: "png" };
+  if (starts([0xff, 0xd8, 0xff])) return { mime: "image/jpeg", ext: "jpg" };
+  if (starts([0x52, 0x49, 0x46, 0x46]) && starts([0x57, 0x45, 0x42, 0x50], 8)) return { mime: "image/webp", ext: "webp" };
+  return null;
+}
+
+const ACCEPTED_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+const NOT_AN_IMAGE = "Choose a PNG, JPEG or WebP image.";
+
+async function myAvatarPath(db: Awaited<ReturnType<typeof createClient>>, id: string): Promise<string | null> {
+  const { data } = await db.from("profiles").select("avatar_path").eq("id", id).single();
+  return data?.avatar_path ?? null;
+}
+
+/** New photo in the own folder under a random name, then the profile points at it and the old file goes. */
+export async function uploadAvatar(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+  const staff = await requireStaff();
+  const file = formData.get("avatar");
+  if (!(file instanceof File) || file.size === 0) return fail("Choose a photo to upload.");
+  if (file.size > MAX_AVATAR_BYTES) return fail("Choose a photo of 2 MB or less.");
+  if (!ACCEPTED_TYPES.has(file.type)) return fail(NOT_AN_IMAGE);
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const kind = sniffImage(bytes);
+  if (!kind) return fail(NOT_AN_IMAGE);
+
+  const db = await createClient();
+  const oldPath = await myAvatarPath(db, staff.id);
+  const path = `${staff.id}/${randomUUID()}.${kind.ext}`;
+  const storage = db.storage.from(AVATAR_BUCKET);
+  const uploaded = await storage.upload(path, bytes, { contentType: kind.mime, upsert: false });
+  if (uploaded.error) return fail(GENERIC_ERROR);
+
+  const { data, error } = await db.from("profiles").update({ avatar_path: path }).eq("id", staff.id).select("id");
+  if (error || data.length === 0) {
+    await storage.remove([path]);
+    return fail(staffErrorMessage(error));
+  }
+  // Best effort: a leftover old file is unreferenced and only readable by staff.
+  if (oldPath) await storage.remove([oldPath]);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function removeAvatar(): Promise<ActionResult> {
+  const staff = await requireStaff();
+  const db = await createClient();
+  const oldPath = await myAvatarPath(db, staff.id);
+  if (!oldPath) return { ok: true };
+  const { data, error } = await db.from("profiles").update({ avatar_path: null }).eq("id", staff.id).select("id");
+  if (error || data.length === 0) return fail(staffErrorMessage(error));
+  await db.storage.from(AVATAR_BUCKET).remove([oldPath]);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+const passwordSchema = z
+  .object({
+    current_password: z.string("Enter your current password.").min(1, "Enter your current password.").max(1024),
+    new_password: newPasswordSchema,
+    confirm_password: z.string("Repeat the new password."),
+  })
+  .refine((v) => v.new_password === v.confirm_password, "The new passwords don't match.");
+
+/** Re-checks the current password, then changes it on the caller's own session (Auth signs out other sessions). */
+export async function changePassword(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+  const staff = await requireStaff();
+  if (await isRateLimited("passwordChange")) return fail(TOO_MANY_ATTEMPTS);
+  const input = parseForm(passwordSchema, formData);
+  if ("error" in input) return input;
+
+  // A throwaway client, so checking the password never touches the caller's session cookies.
+  const verifier = createStatelessClient();
+  const check = await verifier.auth.signInWithPassword({ email: staff.email, password: input.data.current_password });
+  if (check.error || check.data.user?.id !== staff.id) return fail("Your current password is incorrect.");
+  await verifier.auth.signOut({ scope: "local" }); // ends the check's own session only
+
+  const db = await createClient();
+  const { error } = await db.auth.updateUser({ password: input.data.new_password });
+  if (error) return fail(passwordErrorMessage(error.code) ?? GENERIC_ERROR);
+  return { ok: true };
+}

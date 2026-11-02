@@ -17,6 +17,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   // D-007: cacheComponents/partial prefetching off — every page is per-user or no-store.
+  // Profile photos (≤ 2 MB, D-078) go through a server action; the default limit is 1 MB. Room for multipart overhead.
+  experimental: { serverActions: { bodySizeLimit: "3mb" } },
   turbopack: {
     rules: {
       "*.css": {

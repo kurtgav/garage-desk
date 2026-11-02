@@ -4,7 +4,9 @@ import { getPublicJob } from "@/lib/public-job";
 import { isRateLimited } from "@/lib/rate-limit";
 import { AUTH_COOKIE_OPTIONS } from "@/lib/supabase/cookie-options";
 
-const STAFF_PREFIXES = ["/jobs", "/customers", "/dashboard", "/settings"];
+const STAFF_PREFIXES = ["/jobs", "/customers", "/dashboard", "/settings", "/profile", "/staff"];
+// Public app routes (PLAN Phase 5): no sign-in needed and never looked up as a customer token.
+const PUBLIC_PATHS = ["/", "/login", "/forgot-password", "/reset-password", "/auth/confirm"];
 // No route matches this, so Next serves the server-rendered /_not-found (status 404).
 const UNMATCHED_PATH = "/_/not-found";
 const isDev = process.env.NODE_ENV !== "production";
@@ -17,7 +19,8 @@ function contentSecurityPolicy(nonce: string): string {
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
     // React style attributes cannot carry a nonce; inline styles are a low-risk vector.
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    // Profile photos are short-lived signed URLs from Supabase Storage (D-078).
+    `img-src 'self' data: blob: ${supabaseUrl}`.trim(),
     "font-src 'self' data:",
     `connect-src 'self' ${supabaseUrl}${isDev ? " ws:" : ""}`.trim(),
     "frame-ancestors 'none'",
@@ -51,13 +54,13 @@ export async function proxy(request: NextRequest) {
   };
 
   const { pathname } = request.nextUrl;
-  const isStaffPath = pathname === "/" || STAFF_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  const isStaffPath = STAFF_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   // FR6/D-019: an unknown, revoked or rate-limited link must get the same server-rendered 404 (body and
   // headers) as any unknown URL. notFound() in the page only yields Next's client-rendered error shell,
   // so decide before render: outside the app's routes only "/{token}" can exist, and only if the lookup
   // finds it (same rate limit + lookup as the page). Server actions check the token themselves.
-  if (!isStaffPath && pathname !== "/login" && !request.headers.has("next-action")) {
+  if (!isStaffPath && !PUBLIC_PATHS.includes(pathname) && !request.headers.has("next-action")) {
     const token = /^\/([^/]+)$/.exec(pathname)?.[1];
     if (!token || (await isRateLimited("publicView")) || !(await getPublicJob(token))) {
       return forward(new URL(UNMATCHED_PATH, request.url));

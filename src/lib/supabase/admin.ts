@@ -4,8 +4,9 @@ import type { Database } from "@/lib/database.types";
 
 /**
  * Privileged client (bypasses RLS). Only for the public customer link
- * (token lookup, customer approve/decline) and rate limiting. Never import
- * this from a client component or a staff code path.
+ * (token lookup, customer approve/decline), rate limiting, the caller's own
+ * profile row (phone/about, D-076) and Auth admin calls behind requireOwner()
+ * on /staff (D-077). Never import this from a client component.
  */
 export function createAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

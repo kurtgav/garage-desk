@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { roleHome } from "@/lib/auth";
 import { isRateLimited } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
@@ -32,14 +33,14 @@ export async function signIn(_prev: LoginState, formData: FormData): Promise<Log
   const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error || !data.user) return failure;
 
-  // A deactivated (or profile-less) account must not keep a session, otherwise "/" bounces back here silently.
-  const { data: profile } = await supabase.from("profiles").select("active").eq("id", data.user.id).maybeSingle();
+  // A deactivated (or profile-less) account must not keep a session, otherwise the app bounces back here silently.
+  const { data: profile } = await supabase.from("profiles").select("active, role").eq("id", data.user.id).maybeSingle();
   if (!profile?.active) {
     await supabase.auth.signOut();
     return failure;
   }
 
-  redirect("/");
+  redirect(roleHome(profile.role));
 }
 
 export async function signOut(): Promise<void> {

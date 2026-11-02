@@ -136,6 +136,38 @@ export interface GarageSettings {
   vatBps: number; // 2000 = 20%
 }
 
+// ---------- Phase 5: profile, staff management (PLAN "Phase 5") ----------
+
+export type StaffRoleName = "owner" | "mechanic";
+
+/** The signed-in staff member's own profile (/profile). */
+export interface Profile {
+  id: string;
+  fullName: string;
+  email: string;
+  role: StaffRoleName;
+  phone: string | null; // as typed, display text (≤ 30)
+  about: string | null; // ≤ 500
+  /** Short-lived signed URL (private bucket), null without a photo. */
+  avatarUrl: string | null;
+  active: boolean;
+}
+
+/** One row of /staff (owner only). */
+export interface StaffMember {
+  id: string;
+  fullName: string;
+  email: string;
+  role: StaffRoleName;
+  active: boolean;
+  avatarUrl: string | null;
+  /** Assigned jobs not collected or cancelled. */
+  openJobs: number;
+}
+
+/** A generated password, returned once and never stored or logged in plain text. */
+export type TempPassword = { tempPassword: string };
+
 /*
  * Data functions ("server-only", RLS client):
  *   src/lib/data/jobs.ts
@@ -171,6 +203,26 @@ export interface GarageSettings {
  *     addVehicle(prev, formData{customer_id, plate, make, model, year?})
  *     updateVehicle(prev, formData{vehicle_id, plate, make, model, year?})
  *     deleteCustomer(prev, formData{customer_id})                       // owner only; fails if the customer has jobs
+ *
+ *   src/app/(staff)/profile/actions.ts (every active staff member, own profile only)
+ *     updateProfile(prev, formData{full_name, phone?, about?})
+ *     uploadAvatar(prev, formData{avatar: File})                        // png/jpeg/webp ≤ 2 MB, replaces the old photo
+ *     removeAvatar(): ActionResult
+ *     changePassword(prev, formData{current_password, new_password, confirm_password})
+ *   src/app/(staff)/staff/actions.ts (owner only)
+ *     createStaff(prev, formData{full_name, email}): ActionResult<TempPassword>   // new mechanic; password shown once
+ *     setStaffActive(prev, formData{id, active: "true" | "false"})       // never self, never the last active owner
+ *     resetStaffPassword(prev, formData{id}): ActionResult<TempPassword>
+ *   src/lib/data/profile.ts   getMyProfile(): Promise<Profile>        // redirects to /login when signed out; cached per request,
+ *                                                                     // so the shell can use .avatarUrl too
+ *   src/lib/data/staff.ts     listStaff(): Promise<StaffMember[]>     // owner only (mechanics get the 404)
+ *
+ * Auth actions (no session needed):
+ *   src/app/forgot-password/actions.ts  requestPasswordReset(prev, formData{email}) → { ok: true } after validation, always
+ *   src/app/reset-password/actions.ts   setNewPassword(prev, formData{password, confirm}) → redirect to role home
+ *                                       // recovery sessions only; page guard: `if (!(await hasRecoverySession())) redirect("/forgot-password")`
+ *   src/lib/auth.ts                     roleHome(role), hasRecoverySession()   // /login: `if (staff) redirect(roleHome(staff.role))`
+ *   src/app/auth/confirm/route.ts       GET ?token_hash&type=recovery → /reset-password, bad/expired → /forgot-password?expired=1
  *
  * Public actions (src/app/[token]/actions.ts, "use server", admin client + rate limit):
  *   approveQuote(prev, formData{token, expected_version}): ActionResult  // hidden input = quote version shown; mismatch → "quote changed"
