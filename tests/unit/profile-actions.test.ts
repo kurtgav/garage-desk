@@ -108,6 +108,14 @@ describe("updateProfile", () => {
     mocks.state.updateResult = { data: null, error: { code: "42501", message: "permission denied for table profiles" } };
     expect(await updateProfile(null, form({ full_name: "Ivan" }))).toEqual({ ok: false, error: "You don't have permission to do that." });
   });
+
+  it("a name another staff member already uses (unique index) → NAME_TAKEN (D-091)", async () => {
+    mocks.state.updateResult = { data: null, error: { code: "23505", message: "duplicate key value violates unique constraint" } };
+    expect(await updateProfile(null, form({ full_name: "georgi petrov" }))).toEqual({
+      ok: false,
+      error: "Another staff member already uses that name.",
+    });
+  });
 });
 
 describe("uploadAvatar", () => {

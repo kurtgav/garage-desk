@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireStaff } from "@/lib/auth";
-import { GENERIC_ERROR, staffErrorMessage, TOO_MANY_ATTEMPTS } from "@/lib/data/errors";
+import { GENERIC_ERROR, NAME_TAKEN, PG_UNIQUE_VIOLATION, staffErrorMessage, TOO_MANY_ATTEMPTS } from "@/lib/data/errors";
 import { AVATAR_BUCKET } from "@/lib/data/profile";
 import type { ActionResult } from "@/lib/data/types";
 import { fail, optionalText, parseForm } from "@/lib/form";
@@ -36,6 +36,7 @@ export async function updateProfile(_prev: ActionResult | null, formData: FormDa
     .update({ full_name: input.data.full_name, phone: input.data.phone ?? null, about: input.data.about ?? null })
     .eq("id", staff.id)
     .select("id");
+  if (error?.code === PG_UNIQUE_VIOLATION) return fail(NAME_TAKEN);
   if (error || data.length === 0) return fail(staffErrorMessage(error));
   revalidatePath("/", "layout");
   return { ok: true };

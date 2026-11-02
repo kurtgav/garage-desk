@@ -12,6 +12,14 @@ export const newPasswordSchema = z
   .regex(/[A-Z]/, "Include an uppercase letter.")
   .regex(/[0-9]/, "Include a digit.");
 
+/**
+ * Reset by email needs a mailer that reaches staff (custom SMTP); until then production leaves it off
+ * (PASSWORD_RESET_EMAIL=on enables it, D-094) and the owner resets passwords from /staff.
+ */
+export const passwordResetEmailEnabled = (): boolean => process.env.PASSWORD_RESET_EMAIL === "on";
+export const RESET_EMAIL_OFF =
+  "Password reset by email isn't set up yet. Ask the garage owner to reset your password from the Staff page.";
+
 /** Supabase Auth error codes → sentences (the raw Auth text never reaches the UI). */
 export function passwordErrorMessage(code: string | undefined): string | null {
   switch (code) {

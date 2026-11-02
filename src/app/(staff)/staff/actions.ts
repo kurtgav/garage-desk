@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth";
-import { GENERIC_ERROR, staffErrorMessage } from "@/lib/data/errors";
+import { GENERIC_ERROR, NAME_TAKEN, PG_UNIQUE_VIOLATION, staffErrorMessage } from "@/lib/data/errors";
 import type { ActionResult, TempPassword } from "@/lib/data/types";
 import { fail, parseForm } from "@/lib/form";
 import { generateTempPassword } from "@/lib/password";
@@ -53,7 +53,7 @@ export async function createStaff(
   const profile = await admin.from("profiles").insert({ id, full_name: input.data.full_name, role: "mechanic", active: true });
   if (profile.error) {
     await admin.auth.admin.deleteUser(id); // no half-made accounts
-    return fail(GENERIC_ERROR);
+    return fail(profile.error.code === PG_UNIQUE_VIOLATION ? NAME_TAKEN : GENERIC_ERROR);
   }
   revalidatePath("/staff");
   return { ok: true, tempPassword };
@@ -76,10 +76,18 @@ export async function setStaffActive(_prev: ActionResult | null, formData: FormD
   const { error } = await db.rpc("set_staff_active", { p_profile_id: id, p_active: active });
   if (error) return fail(STAFF_ERRORS[error.message] ?? staffErrorMessage(error));
 
-  // profiles.active already locks them out (RLS, getStaff); the ban also stops sign-in and session refresh.
-  const ban = await createAdminClient().auth.admin.updateUserById(id, { ban_duration: active ? "none" : BANNED_FOREVER });
+  // profiles.active already locks them out (RLS, getStaff) and the RPC ended their sessions; the ban stops
+  // new sign-ins. It is idempotent, so a failed call is retried once before reporting the partial success.
+  const admin = createAdminClient();
+  const ban = () => admin.auth.admin.updateUserById(id, { ban_duration: active ? "none" : BANNED_FOREVER });
+  const done = !(await ban()).error || !(await ban()).error;
   revalidatePath("/staff");
-  return ban.error ? fail(GENERIC_ERROR) : { ok: true };
+  if (done) return { ok: true };
+  return fail(
+    active
+      ? "Reactivated, but unblocking their sign-in failed. Try again."
+      : "Deactivated, but signing them out failed. Try again.",
+  );
 }
 
 /** A new one-time temporary password for a mechanic. Owners (incl. self) use /profile or forgot password. */
@@ -94,9 +102,10 @@ export async function resetStaffPassword(
 
   // Only staff accounts (owner RLS sees every profile), and never an owner's: a reset bypasses their password.
   const db = await createClient();
-  const { data: profile } = await db.from("profiles").select("role").eq("id", id).maybeSingle();
+  const { data: profile } = await db.from("profiles").select("role, active").eq("id", id).maybeSingle();
   if (!profile) return fail(NOT_FOUND);
   if (profile.role === "owner") return fail(OWNER_PASSWORD);
+  if (!profile.active) return fail("Reactivate them first.");
 
   const tempPassword = generateTempPassword();
   const { error } = await createAdminClient().auth.admin.updateUserById(id, { password: tempPassword });

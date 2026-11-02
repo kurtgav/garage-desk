@@ -9,8 +9,8 @@ const mocks = vi.hoisted(() => {
     created: { data: { user: { id: "new-user" } }, error: null } as { data: { user: { id: string } | null }; error: unknown },
     insertError: null as unknown,
     rpcError: null as unknown,
-    updateUserError: null as unknown,
-    profileRow: { role: "mechanic" } as { role: string } | null,
+    updateUserErrors: [] as unknown[], // one per call, in order; then no error
+    profileRow: { role: "mechanic", active: true } as { role: string; active: boolean } | null,
   };
   return {
     state,
@@ -31,7 +31,7 @@ vi.mock("@/lib/supabase/admin", () => ({
       admin: {
         createUser: async (attrs: unknown) => (mocks.createUser(attrs), mocks.state.created),
         deleteUser: mocks.deleteUser,
-        updateUserById: async (id: string, attrs: unknown) => (mocks.updateUserById(id, attrs), { error: mocks.state.updateUserError }),
+        updateUserById: async (id: string, attrs: unknown) => (mocks.updateUserById(id, attrs), { error: mocks.state.updateUserErrors.shift() ?? null }),
       },
     },
     from: () => ({ insert: async (row: unknown) => (mocks.insert(row), { error: mocks.state.insertError }) }),
@@ -63,8 +63,8 @@ beforeEach(() => {
     created: { data: { user: { id: "new-user" } }, error: null },
     insertError: null,
     rpcError: null,
-    updateUserError: null,
-    profileRow: { role: "mechanic" },
+    updateUserErrors: [],
+    profileRow: { role: "mechanic", active: true },
   });
 });
 
@@ -117,6 +117,15 @@ describe("createStaff", () => {
     expect(res.ok).toBe(false);
     expect(mocks.deleteUser).toHaveBeenCalledWith("new-user");
   });
+
+  it("a name another staff member already uses → NAME_TAKEN, Auth user deleted (D-091)", async () => {
+    mocks.state.insertError = { code: "23505", message: "duplicate key value violates unique constraint" };
+    expect(await createStaff(null, form({ full_name: "Georgi Petrov", email: "g2@garagedesk.test" }))).toEqual({
+      ok: false,
+      error: "Another staff member already uses that name.",
+    });
+    expect(mocks.deleteUser).toHaveBeenCalledWith("new-user");
+  });
 });
 
 describe("setStaffActive", () => {
@@ -130,6 +139,21 @@ describe("setStaffActive", () => {
     expect(await setStaffActive(null, form({ id: MECH, active: "true" }))).toEqual({ ok: true });
     expect(mocks.rpc).toHaveBeenCalledWith("set_staff_active", { p_profile_id: MECH, p_active: true });
     expect(mocks.updateUserById).toHaveBeenCalledWith(MECH, { ban_duration: "none" });
+  });
+
+  it("the ban call fails once → retried, still ok (D-092)", async () => {
+    mocks.state.updateUserErrors = [{ message: "network" }];
+    expect(await setStaffActive(null, form({ id: MECH, active: "false" }))).toEqual({ ok: true });
+    expect(mocks.updateUserById).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ["false", "Deactivated, but signing them out failed. Try again."],
+    ["true", "Reactivated, but unblocking their sign-in failed. Try again."],
+  ])("active=%s: the ban fails twice → partial-success message", async (active, error) => {
+    mocks.state.updateUserErrors = [{ message: "a" }, { message: "b" }];
+    expect(await setStaffActive(null, form({ id: MECH, active }))).toEqual({ ok: false, error });
+    expect(mocks.updateUserById).toHaveBeenCalledTimes(2);
   });
 
   it("never self", async () => {
@@ -170,11 +194,17 @@ describe("resetStaffPassword", () => {
     ["another owner", "00000000-0000-4000-8000-000000000003"],
     ["themselves", OWNER.id],
   ])("an owner's password (%s) is never reset here", async (_name, id) => {
-    mocks.state.profileRow = { role: "owner" };
+    mocks.state.profileRow = { role: "owner", active: true };
     expect(await resetStaffPassword(null, form({ id }))).toEqual({
       ok: false,
       error: "Owners change their own password on their profile.",
     });
+    expect(mocks.updateUserById).not.toHaveBeenCalled();
+  });
+
+  it("a deactivated mechanic → reactivate first, no Auth call (D-092)", async () => {
+    mocks.state.profileRow = { role: "mechanic", active: false };
+    expect(await resetStaffPassword(null, form({ id: MECH }))).toEqual({ ok: false, error: "Reactivate them first." });
     expect(mocks.updateUserById).not.toHaveBeenCalled();
   });
 

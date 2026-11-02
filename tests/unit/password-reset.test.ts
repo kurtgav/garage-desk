@@ -47,7 +47,8 @@ vi.mock("@/lib/supabase/server", () => ({
 const { requestPasswordReset } = await import("@/app/forgot-password/actions");
 const { setNewPassword } = await import("@/app/reset-password/actions");
 const { GET: confirm } = await import("@/app/auth/confirm/route");
-const { signIn } = await import("@/app/login/actions");
+const { signIn, signOut } = await import("@/app/login/actions");
+const { RESET_EMAIL_OFF } = await import("@/lib/password");
 const { NextRequest } = await import("next/server");
 
 function form(fields: Record<string, string>): FormData {
@@ -69,6 +70,7 @@ async function redirectOf(run: () => Promise<unknown>): Promise<string | null> {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv("PASSWORD_RESET_EMAIL", "on");
   mocks.isRateLimited.mockResolvedValue(false);
   mocks.hasRecoverySession.mockResolvedValue(true);
   mocks.getStaff.mockResolvedValue({ id: "m1", fullName: "Ivan Dimitrov", email: "jun@garagedesk.test", role: "mechanic" });
@@ -98,6 +100,13 @@ describe("requestPasswordReset (no account enumeration)", () => {
     mocks.isRateLimited.mockResolvedValueOnce(true);
     expect((await requestPasswordReset(null, form({ email: "jun@garagedesk.test" }))).ok).toBe(false);
     expect(mocks.isRateLimited).toHaveBeenCalledWith("passwordReset");
+    expect(mocks.after).not.toHaveBeenCalled();
+  });
+
+  it("PASSWORD_RESET_EMAIL not on (no SMTP yet) → 'ask the owner' for every address, nothing sent (D-094)", async () => {
+    vi.stubEnv("PASSWORD_RESET_EMAIL", "");
+    expect(await requestPasswordReset(null, form({ email: "jun@garagedesk.test" }))).toEqual({ ok: false, error: RESET_EMAIL_OFF });
+    expect(mocks.isRateLimited).not.toHaveBeenCalled();
     expect(mocks.after).not.toHaveBeenCalled();
   });
 });
@@ -178,5 +187,12 @@ describe("signIn → role home", () => {
     const res = await signIn(null, form({ email: "a@b.bg", password: "x" }));
     expect(res).toMatchObject({ ok: false, error: "Email or password is incorrect." });
     expect(mocks.signOut).toHaveBeenCalled();
+  });
+});
+
+describe("signOut", () => {
+  it("ends this device's session only; other devices stay signed in (D-092)", async () => {
+    expect(await redirectOf(() => signOut())).toBe("/login");
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: "local" });
   });
 });
