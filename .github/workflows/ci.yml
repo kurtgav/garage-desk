@@ -85,54 +85,25 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-  # D-105: a green push to main applies new migrations, then deploys production.
-  deploy:
-    name: Deploy to production
-    needs: integration-e2e
+  # D-105: Vercel deploys production from every push to main (Git integration; commits by kurtgav,
+  # build cache off). This job applies new migrations at the same moment, so the schema is ready
+  # before that build finishes. Migrations stay backward compatible with the code already running.
+  migrate:
+    name: Apply migrations to production
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     concurrency:
-      group: production-deploy
+      group: production-migrate
       cancel-in-progress: false
     env:
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-      VERCEL_ORG_ID: team_Om2dy9GPvS3PveEShKb5sWC4 # kurtgavs-projects (not secret)
-      VERCEL_PROJECT_ID: prj_3FifXXGneBtCiEWEMW6AlKttGXQo # garage-desk (not secret)
-      SITE: https://garage-desk-tau.vercel.app
     steps:
-      - name: Check deploy secrets
-        id: cfg
-        run: |
-          if [ -n "$VERCEL_TOKEN" ] && [ -n "$SUPABASE_DB_URL" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::Deploy skipped: set the VERCEL_TOKEN and SUPABASE_DB_URL repository secrets (docs/NEXT-STEPS.md)."
-          fi
-      - if: steps.cfg.outputs.ready == 'true'
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-      - if: steps.cfg.outputs.ready == 'true'
-        uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1
+      - name: Check secret
+        run: test -n "$SUPABASE_DB_URL" || { echo "::error::Set the SUPABASE_DB_URL repository secret (docs/NEXT-STEPS.md)."; exit 1; }
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1
         with:
           version: 2.122.0 # match devDependency `supabase`
-      # Migrations first: the new code may need them, and they are written to keep the running code working.
       - name: Apply new migrations
-        if: steps.cfg.outputs.ready == 'true'
         run: supabase db push --db-url "$SUPABASE_DB_URL" --yes
-      # From a git archive (no .git): Vercel Hobby blocks deployments whose commit author is not the
-      # account owner (D-075). --force skips the build cache, which once served stale CSS (D-089).
-      - name: Deploy to Vercel
-        if: steps.cfg.outputs.ready == 'true'
-        run: |
-          mkdir -p "$RUNNER_TEMP/deploy"
-          git archive HEAD | tar -x -C "$RUNNER_TEMP/deploy"
-          cd "$RUNNER_TEMP/deploy"
-          url=$(npx --yes vercel@54.7.1 deploy --prod --yes --force --token "$VERCEL_TOKEN")
-          npx --yes vercel@54.7.1 inspect "$url" --wait --timeout 10m --token "$VERCEL_TOKEN"
-      - name: Smoke check
-        if: steps.cfg.outputs.ready == 'true'
-        run: |
-          curl -fsS -o /dev/null "$SITE/"
-          curl -fsS -o /dev/null "$SITE/login"
-          test "$(curl -s -o /dev/null -w '%{http_code}' "$SITE/dashboard")" = 307
