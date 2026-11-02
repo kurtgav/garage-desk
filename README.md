@@ -9,7 +9,7 @@ Stack: Next.js 16 (App Router) and TypeScript, Supabase (Postgres and Auth), Tai
 | Doc | What is in it |
 |---|---|
 | [docs/PRD.md](docs/PRD.md) | The spec, including the client's answers (§12) |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Every non-obvious choice and why (D-001 to D-096) |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Every non-obvious choice and why (D-001 to D-097) |
 | [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md) | A screen-by-screen tour with screenshots of the live app |
 | [docs/user-guide/](docs/user-guide/guide.html) | Staff user guide; `node scripts/build-user-guide.mjs` builds the private `userguide.pdf` with the accounts (gitignored, D-097) |
 | [docs/NEXT-STEPS.md](docs/NEXT-STEPS.md) | What to do before and after real use |
