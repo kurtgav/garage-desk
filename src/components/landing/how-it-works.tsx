@@ -140,9 +140,13 @@ export function HowItWorks({ cta }: Props) {
           </p>
           <LpCta href={cta.href} label={cta.label} className="self-start" />
         </div>
-        <div aria-hidden className="lp-marquee relative h-[220px] overflow-hidden lg:h-auto lg:min-h-[340px]">
-          <ul className="flex animate-lp-marquee-y flex-col gap-3 px-7 pb-3 lg:px-10 motion-reduce:animate-none">
-            {[...CHANNELS, ...CHANNELS].map((c, i) => (
+        <div
+          aria-hidden
+          className="lp-marquee relative h-[220px] overflow-hidden [mask-image:linear-gradient(to_bottom,transparent,black_16%,black_84%,transparent)] lg:h-auto lg:min-h-[340px]"
+        >
+          {/* Absolute, so the list never sets the panel's height; each half (2 × CHANNELS, 768px) is taller than the panel, so the loop never shows a gap. */}
+          <ul className="lp-marquee-track absolute inset-x-0 top-0 flex animate-lp-marquee-y flex-col gap-3 px-7 pb-3 [animation-duration:36s] lg:px-10 motion-reduce:animate-none">
+            {[...CHANNELS, ...CHANNELS, ...CHANNELS, ...CHANNELS].map((c, i) => (
               <li key={c + i} className="rounded-[12px] bg-white px-5 py-4 font-lp-mono text-sm">
                 Link pasted into {c}
               </li>
