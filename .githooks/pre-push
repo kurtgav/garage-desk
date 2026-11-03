@@ -1,3 +1,9 @@
 #!/bin/sh
-# Blocks pushes if any tracked file contains a secret.
-exec node scripts/secrets-scan.mjs --all
+# Blocks pushes if any tracked file, or any file version in the commits being pushed, contains a secret.
+node scripts/secrets-scan.mjs --all || exit 1
+zero=0000000000000000000000000000000000000000
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue # branch deletion
+  node scripts/secrets-scan.mjs --objects "$local_sha" --not --remotes || exit 1
+done
+exit 0

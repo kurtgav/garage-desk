@@ -20,6 +20,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0 # whole history for the secret scan
       # pnpm version comes from package.json `packageManager`
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
@@ -29,6 +31,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Secret scan (all tracked files)
         run: node scripts/secrets-scan.mjs --all
+      - name: Secret scan (every file version in history)
+        run: node scripts/secrets-scan.mjs --objects --all
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
@@ -85,11 +89,12 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-  # D-105: Vercel deploys production from every push to main (Git integration; commits by kurtgav,
-  # build cache off). This job applies new migrations at the same moment, so the schema is ready
-  # before that build finishes. Migrations stay backward compatible with the code already running.
+  # D-105/D-109: Vercel deploys production from every push to main (Git integration; commits by kurtgav,
+  # build cache off). This job applies new migrations only after every test has passed, so a migration that
+  # breaks tests never reaches production. Code that needs a new migration ships after it (D-105).
   migrate:
     name: Apply migrations to production
+    needs: [checks, integration-e2e]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
