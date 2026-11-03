@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: "Page not found" };
 export default async function NotFound() {
   await connection();
   return (
-    <AuthShell title="Page not found" intro="Check the address and try again." backLink={false}>
+    <AuthShell eyebrow="Error 404" title="Page not found" intro="Check the address and try again." backLink={false}>
       <p className="text-base leading-normal text-pretty text-lp-body">
         Got this link from the garage? Ask them to send it again.
       </p>
