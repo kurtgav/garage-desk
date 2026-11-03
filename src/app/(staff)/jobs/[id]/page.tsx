@@ -335,6 +335,11 @@ function versionSuffix(e: JobEvent): string {
   return ` — v${e.quoteVersion}${e.totalCents != null ? ` · ${formatCents(e.totalCents)}` : ""}`;
 }
 
+/** A link decision names who shared the link, so staff opening their own link signed out is visible (D-111). */
+function linkSharedBy(e: JobEvent): string | undefined {
+  return e.linkSharedBy ? `link shared by ${e.linkSharedBy}` : undefined;
+}
+
 /** A line change on a quoted/approved/in-progress job re-quotes automatically (D-050). */
 function isAutoRequote(e: JobEvent): boolean {
   return (
@@ -369,13 +374,13 @@ function toTimelineItem(e: JobEvent): TimelineItem {
           }
         : {
             ...base,
-            by: undefined,
+            by: linkSharedBy(e),
             title: `Approved by customer via link${versionSuffix(e)}`,
           };
     case "declined":
       return {
         ...base,
-        by: undefined,
+        by: linkSharedBy(e),
         title: `Declined by customer${versionSuffix(e)}`,
         note: e.note && `Reason: ${e.note}`,
       };

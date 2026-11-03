@@ -21,14 +21,14 @@ export type Database = {
                   ]
                 },"job_events": {
                   Row: {
-                    "actor_id": string | null,"actor_name": string,"actor_type": Database["public"]['Enums']["actor_type"],"channel": Database["public"]['Enums']["approval_channel"] | null,"created_at": string,"from_status": Database["public"]['Enums']["job_status"] | null,"id": number,"job_id": string,"note": string | null,"quote_version": number | null,"to_status": Database["public"]['Enums']["job_status"],"total_cents": number | null
+                    "actor_id": string | null,"actor_name": string,"actor_type": Database["public"]['Enums']["actor_type"],"channel": Database["public"]['Enums']["approval_channel"] | null,"created_at": string,"from_status": Database["public"]['Enums']["job_status"] | null,"id": number,"job_id": string,"link_shared_by": string | null,"note": string | null,"quote_version": number | null,"to_status": Database["public"]['Enums']["job_status"],"total_cents": number | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "actor_id"?: string | null,"actor_name": string,"actor_type": Database["public"]['Enums']["actor_type"],"channel"?: Database["public"]['Enums']["approval_channel"] | null,"created_at"?: string,"from_status"?: Database["public"]['Enums']["job_status"] | null,"id"?: never,"job_id": string,"note"?: string | null,"quote_version"?: number | null,"to_status": Database["public"]['Enums']["job_status"],"total_cents"?: number | null
+                    "actor_id"?: string | null,"actor_name": string,"actor_type": Database["public"]['Enums']["actor_type"],"channel"?: Database["public"]['Enums']["approval_channel"] | null,"created_at"?: string,"from_status"?: Database["public"]['Enums']["job_status"] | null,"id"?: never,"job_id": string,"link_shared_by"?: string | null,"note"?: string | null,"quote_version"?: number | null,"to_status": Database["public"]['Enums']["job_status"],"total_cents"?: number | null
                   }
                   Update: {
-                    "actor_id"?: string | null,"actor_name"?: string,"actor_type"?: Database["public"]['Enums']["actor_type"],"channel"?: Database["public"]['Enums']["approval_channel"] | null,"created_at"?: string,"from_status"?: Database["public"]['Enums']["job_status"] | null,"id"?: never,"job_id"?: string,"note"?: string | null,"quote_version"?: number | null,"to_status"?: Database["public"]['Enums']["job_status"],"total_cents"?: number | null
+                    "actor_id"?: string | null,"actor_name"?: string,"actor_type"?: Database["public"]['Enums']["actor_type"],"channel"?: Database["public"]['Enums']["approval_channel"] | null,"created_at"?: string,"from_status"?: Database["public"]['Enums']["job_status"] | null,"id"?: never,"job_id"?: string,"link_shared_by"?: string | null,"note"?: string | null,"quote_version"?: number | null,"to_status"?: Database["public"]['Enums']["job_status"],"total_cents"?: number | null
                   }
                   Relationships: [
                     {

@@ -42,6 +42,8 @@ export interface JobEvent {
   actorName: string;
   /** Approvals only: "link" (customer clicked) or "phone" (owner recorded it). */
   channel: ApprovalChannel | null;
+  /** Link decisions: name of the staff member who created that link (D-111). */
+  linkSharedBy: string | null;
   /** Quote version this event refers to (quotes, re-quotes, approvals). */
   quoteVersion: number | null;
   /** Quote total (incl. VAT) this event refers to. */

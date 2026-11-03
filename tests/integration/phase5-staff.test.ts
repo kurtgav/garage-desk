@@ -128,7 +128,7 @@ describe("set_staff_active (owner only, never self, at least one active owner)",
     expect(error?.message).toBe("not_found");
   });
 
-  it("deactivated mechanic loses everything at once; reactivation restores it", async () => {
+  it("deactivated mechanic loses everything at once; after reactivation a new sign-in restores it", async () => {
     expect((await ownerDb.rpc("set_staff_active", { p_profile_id: mechB.id, p_active: false })).error).toBeNull();
     expect((await bDb.from("profiles").select("id")).data ?? []).toHaveLength(0);
     expect((await bDb.from("jobs").select("id")).data ?? []).toHaveLength(0);
@@ -137,6 +137,9 @@ describe("set_staff_active (owner only, never self, at least one active owner)",
     expect((await upload(bDb, avatarPath(mechB))).error).not.toBeNull();
 
     expect((await ownerDb.rpc("set_staff_active", { p_profile_id: mechB.id, p_active: true })).error).toBeNull();
+    // Deactivation deleted the session, so the old token stays locked out (D-109); signing in again restores access.
+    expect((await bDb.from("profiles").select("id").eq("id", mechB.id)).data ?? []).toHaveLength(0);
+    bDb = await signInAs(mechB);
     expect((await bDb.from("profiles").select("id").eq("id", mechB.id)).data).toHaveLength(1);
   });
 

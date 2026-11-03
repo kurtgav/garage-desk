@@ -70,7 +70,7 @@ const DETAIL_COLUMNS = `id, ref, status, description, vat_bps, created_at, quote
   mechanic:profiles!jobs_assigned_mechanic_id_fkey(id, full_name),
   lines:job_line_items(id, kind, description, quantity::text, unit_price_cents, line_total_cents),
   quotes:job_quotes(version, subtotal_cents, vat_cents, total_cents, created_at),
-  events:job_events(id, from_status, to_status, actor_type, actor_name, channel, quote_version, total_cents, note, created_at),
+  events:job_events(id, from_status, to_status, actor_type, actor_name, channel, link_shared_by, quote_version, total_cents, note, created_at),
   links:job_links(created_at, last_viewed_at)`;
 
 const jobId = z.guid();
@@ -164,6 +164,7 @@ export async function getJob(id: string): Promise<JobDetail | null> {
       actorType: e.actor_type,
       actorName: e.actor_name, // snapshot at write time ("Customer" for customer decisions), D-091
       channel: e.channel,
+      linkSharedBy: e.link_shared_by, // who created the link a customer decision came through, D-111
       quoteVersion: e.quote_version,
       totalCents: e.total_cents,
       note: e.note,
