@@ -1,6 +1,7 @@
+import Image from "next/image";
 import Link from "next/link";
 import { cva, type VariantProps } from "class-variance-authority";
-import { ChevronsRight, Wrench } from "lucide-react";
+import { ChevronsRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /** Buttons of the public pages (reference: 45px, 10px radius, 16px medium). Also for links. */
@@ -74,7 +75,7 @@ export function LpCta({
   );
 }
 
-/** Square ink mark with a wrench + name. */
+/** The mascot app icon (public/brand/mark.webp, from the client's logo) + name. */
 export function LandingWordmark({
   className,
   markClassName,
@@ -91,9 +92,7 @@ export function LandingWordmark({
         className,
       )}
     >
-      <span aria-hidden className={cn("grid size-7 place-items-center rounded-[8px] bg-lp-ink text-white", markClassName)}>
-        <Wrench className="size-4" strokeWidth={2.25} />
-      </span>
+      <Image src="/brand/mark.webp" alt="" width={192} height={192} sizes="64px" className={cn("size-8 shrink-0", markClassName)} />
       <span className={textClassName}>Garage Desk</span>
     </span>
   );
@@ -105,7 +104,7 @@ export function Eyebrow({ children, className }: { children: React.ReactNode; cl
 }
 
 /** Type scale (reference: 76 / 54 / 32 / 24 at weight 600, -2.56px tracking on the big two). */
-export const lpH1 = "font-lp-display text-[2.875rem] leading-none font-semibold tracking-[-0.045em] text-balance sm:text-6xl lg:text-[76px] lg:tracking-[-2.56px]";
+export const lpH1 = "font-lp-display text-[clamp(2.5rem,11.5vw,2.875rem)] leading-none font-semibold tracking-[-0.045em] text-balance sm:text-6xl xl:text-[76px] xl:tracking-[-2.56px]";
 export const lpH2 = "font-lp-display text-[2.375rem] leading-[1.08] font-semibold tracking-[-0.045em] text-balance sm:text-5xl lg:text-[54px] lg:tracking-[-2.56px]";
 export const lpH3 = "font-lp-display text-2xl leading-[1.15] font-semibold tracking-[-0.03em] lg:text-[32px]";
 export const lpH4 = "font-lp-display text-xl leading-[1.2] font-semibold tracking-[-0.02em] lg:text-2xl";
