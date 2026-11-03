@@ -20,7 +20,7 @@ const RUN = [
 export function Hero({ cta }: Props) {
   const words = HEADLINE.split(" ");
   return (
-    <section aria-labelledby="hero-title" className="relative isolate overflow-hidden bg-lp-paper">
+    <section aria-labelledby="hero-title" className="relative isolate flex min-h-svh flex-col overflow-hidden bg-lp-paper">
       <Image
         src="/landing/vitosha-dither.webp"
         alt=""
@@ -34,7 +34,8 @@ export function Hero({ cta }: Props) {
       <div
         className={cn(
           lpContainer,
-          "grid gap-12 pt-28 pb-16 sm:pt-36 lg:min-h-[900px] lg:grid-cols-[minmax(0,1fr)_490px] lg:items-center lg:gap-16 lg:pt-28 lg:pb-24",
+          // Fills the first screen at every size (svh: the height with the mobile URL bar showing), content centred.
+          "grid flex-1 content-center gap-12 pt-28 pb-16 sm:pt-32 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-center lg:gap-12 lg:py-28 xl:grid-cols-[minmax(0,1fr)_490px] xl:gap-16",
         )}
       >
         <div>
@@ -75,7 +76,7 @@ function HeroCard() {
   return (
     <figure className="w-full max-w-[490px] animate-lp-rise justify-self-start overflow-hidden rounded-[24px] bg-white shadow-[0_0_0_1px_rgb(25_24_20/0.05),0_40px_80px_-40px_rgb(0_37_76/0.35)] [animation-delay:300ms]">
       <div className="flex items-center justify-between border-b border-lp-line px-5 py-4">
-        <LandingWordmark className="text-lg" markClassName="size-6 rounded-[6px] [&_svg]:size-3.5" />
+        <LandingWordmark className="text-lg" markClassName="size-7" />
         <span className="rounded-full bg-lp-ink px-3 py-1 font-lp-mono text-[13px] text-white">GD-0099</span>
       </div>
       <div className="px-5 pt-5 pb-6">
