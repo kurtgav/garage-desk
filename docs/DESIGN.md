@@ -66,39 +66,23 @@ Temporary passwords (Add mechanic, Reset password) are shown once, in the dialog
 
 ## Landing page
 
-Public pages only: `/`, `/login`, `/forgot-password`, `/reset-password`. Requested on 2 Nov: reverse-engineer the visual language of the client's reference (https://boxinside.webflow.io, a storage-locker site) and fill it with Garage Desk's own, true content. The staff app above does not change: every landing style is an `lp-*` token or a rule scoped under `.lp` in the "Landing" section of `globals.css` (D-080).
+Public pages only: `/`, `/login`, `/forgot-password`, `/reset-password`, the 404. Rebuilt on 3 Nov after the client's second reference (https://zarion.webflow.io, a Webflow template; D-112). Its composition, type rhythm, tokens and motion were reverse-engineered; none of its text, pictures, logo or code is used.
 
 **Tokens (reference → `globals.css`).**
 
 | Role | Reference | Token |
 |---|---|---|
-| Primary / hover / pressed | `#0C6ACE` / `#003E7F` / `#00254C` | `lp-blue`, `lp-blue-hover`, `lp-blue-pressed` |
-| Blue surface, blue border | `#E0EFFE`, `#AAC3DD` | `lp-surface`, `lp-border` |
-| Ink, body text | `#101010`, `#606060` | `lp-ink`, `lp-body` |
-| Neutrals 20 / 30 / 40 / 50 / 80 | `#F5F5F5` `#EDEDED` `#D6D6D6` `#C2C2C2` `#383838` | `lp-n20` … `lp-n80` (`#878787` used once, for the 3:1 slider buttons) |
-| Display / text face | Plus Jakarta Sans 400 / Figtree 400–600 | `font-lp-display`, `font-lp-text` (next/font, self-hosted) |
+| Accent | `#003CFF` | kept Garage Desk's `#0C6ACE` (`lp-blue`, hover `lp-blue-hover`, pressed `lp-blue-pressed`) so the page matches the app and its screenshots |
+| Ink / muted | `#191814` / `#757368` | `lp-ink` / `lp-body` `#5F5D55` (darkened for 4.5:1 on cream) |
+| Cream, paper, sky, cyan chip | `#F1F2E5`, `#F8F9F2`, `#E9F5FF`, `#CCF9FF` | `lp-cream`, `lp-paper`, `lp-sky`, `lp-cyan`; hairlines `lp-line` `#DCDCCF` |
+| Faces | Instrument Sans 400–600, Space Mono 400 | `font-lp-display` = `font-lp-text` (Instrument Sans), `font-lp-mono` (Space Mono); next/font, self-hosted |
+| Type scale | 76 / 54 / 32 / 24, 600, −2.56px on the big two; body 16/1.24 at 500 | `lpH1`, `lpH2`, `lpH3`, `lpH4` in `landing/ui.tsx` |
+| Radii | 10 (buttons) / 20–24 (cards) / 999 (pills) | Tailwind arbitrary values |
+| Container | 1232px | `lpContainer` (1264 incl. gutters) |
 | Easing | Webflow "outQuart" | `ease-lp` = `cubic-bezier(0.25, 1, 0.5, 1)` |
 
-Contrast checked (AA): white on `lp-blue` 5.3, `lp-blue` on white 5.3, `lp-body` on white 6.3 and on `lp-n20` 5.8, `lp-blue` on `lp-surface` 4.5. Form controls keep the staff `--color-control` border (3:1); only their size (52px) and radius (16px) follow the landing (`lpControl`).
+**Sections (reference slot → Garage Desk).** Floating white nav pill with a dark CTA chip · dithered-landscape hero with an app card that plays one job (GD-0099: v1 declined, v2 approved) · How it works: 2×2 cream cards round a blue centre, the job's day on a progress bar, 1-tap / 2-tap cards, a wide card with a vertical marquee · Features: endless row of cream/sky cards · Tour (use cases): rows 01–06 left, screenshots stacking on the right (sticky) · Compare ("what you get back"): phone approval vs link approval · Security in the pricing geometry (link / money / staff accounts) · FAQ: numbered `<details name>` rows, one open · Closing: 76px two-line headline, second line types in, on cream slats · Footer: cream card, giant wordmark.
 
-**Type scale.** h1 64px/1.2 (40px phone, 48px tablet); h2 48px/1.2 (28–40px below lg); card titles 24–32px in the display face; lead 18px/1.5 `lp-body`; body 16px/1.5. Buttons: pills (`rounded-full`), 52px or 59px tall, Figtree 600 17–18px (`lpButton`).
+**Picture.** The hero and compare panel use "Sofia-vitosha-kempinski" by podoboq (CC BY 2.0, Wikimedia Commons), cropped and ordered-dithered (Bayer 8×8, five tones from paper to `lp-blue`) into `public/landing/vitosha-dither.webp`, shown with `image-rendering: pixelated`. Credited in the footer. The source photo stays out of the repo.
 
-**Shapes.** Cards 24px radius, large panels 32px, inner fragments 16–20px, pills 100px. Page width 1440 max with 24 / 32 / 80px gutters (`lpContainer`). Sections 80–120px apart on desktop, 64–80px on phones.
-
-**Section map (reference slot → Garage Desk).**
-
-| Reference | Garage Desk |
-|---|---|
-| Nav in the left hero column, "Book a Call" | Full-width sticky header (`LandingHeader`): transparent over the hero, white/85 + blur + hairline once scrolled (CSS transition, none with reduced motion). Wordmark, How it works / Features / Security / FAQ from 1024px (a menu below that), one account action: "Sign in", or "Open app" (role home) when signed in. Anchored sections get `scroll-margin-top` and smooth scrolling. |
-| Hero: headline with an inline image tile, stats row, grey collage panel with a tilted blue card | "Quotes your customers [phone tile] approve on their phone."; facts that are true of the product (256-bit link token, 8 job statuses, VAT rounded once); collage of real app fragments with demo data, labels copied from the app (customer link panel as shown right after creating the link, GD-0099's timeline v1 quoted → declined → v2 quoted, blue quote card with net/VAT ring, the customer page, owner KPIs, ready list). Two columns from 1280px, stacked below. |
-| "Featured": two-column heading, image-left rows with a quote line | "Why Garage Desk": job card from first call to keys; the quoted job and its timeline |
-| Blue "How it works" band (locker pattern), white card with stepped dashed connectors, 3×2 benefit cards (hover → dark blue) | Pegboard band; six steps from intake to collection; six features |
-| "Box & Prices": three product cards with specs | "Product tour": dashboard, mechanic's jobs, customer's phone, each with a short spec list and the full screenshot |
-| Testimonials slider over a dotted world map, logo pill in the h2 | Security rules slider (link tokens, RLS, immutable quote versions, VAT, roles, rate limits, no secrets in the browser). No testimonials, logos, ratings, counts or prices are invented. |
-| Locations: map + list | FAQ: sticky screenshot + nine questions (`<details>`) |
-| Blue CTA band, white card with the name set huge, 3D object, four pills | "Run the workshop from one desk.", the phone's "ready for collection" page, four feature pills |
-| Black footer | Wordmark and line, Product / Staff / Small print columns, © line |
-
-**Motion.** The reference's Webflow interactions, reproduced in CSS: headings and cards rise 64px (100px from 1024px) and fade in over 1000ms `ease-lp` as they enter the viewport, staggered 60–90ms (`data-reveal`, `Reveal`); cards that "grow in" start at scale .85; the step connectors fill left to right. Content is visible without JavaScript and with reduced motion (D-082). Hovers: 300ms colour changes, buttons press to scale .96.
-
-**Sign-in pages.** `AuthShell`: from 481px a white card (24px radius, 40px padding, `shadow-lp-card`: hairline ring + contact shadow + wide soft blue shadow) on `lp-n20` with the landing pegboard as faint blue dots (`.lp-auth-dots`, radial mask) around it; the card is anchored near the top (`clamp(3rem,14vh,9rem)`) so a notice opening inside it never moves the heading. Up to 480px the chrome drops away: white page, no dots, just the form. Inside: the small wordmark (→ home), a 32px display-face h1, one muted line, the form; below the card a quiet "Back to Garage Desk home" (arrow nudges on hover). One entrance: 250ms fade + 8px rise (off with reduced motion). Fields and the submit share one rectangle family: 48px, 12px radius (`lpControl`, `lpSubmit`; the submit presses to .98 and shows the spinner + `aria-busy` while pending, label unchanged). Focus is a 3px blue ring 2px off every control; the reveal toggle draws its ring inside the field. Results sit in `AuthNotice` at the top of the form: it opens by animating its height, keeps the last result while a retry is pending, and remounts the alert per result so a repeat is announced again (D-088). No product imagery here. `/login` keeps the labels "Email", "Password" and the button "Sign in" (e2e); "Forgot password?" sits on the Password label row, right-aligned. `/forgot-password` answers the same for every address, adds "No email after a few minutes? Ask the garage owner to reset your password from the Staff page." (production has no custom SMTP yet, D-079) and shows the expired-link notice for `?expired=1`. `/reset-password` lists the password rule up front and ticks each part off while typing (rules mirrored from `src/lib/password.ts`, kept in step by a unit test); a mismatch shows as soon as the confirmation stops being a prefix. Password fields use `PasswordInput` (reveal toggle, D-081).
+**Motion.** CSS only, no new dependencies (the reference uses GSAP, SplitText, ScrollTrigger and Lenis): per-word headline rise, the hero card's rows on delays, `[data-reveal]` fades via `reveal.tsx`, marquees that pause on hover/focus, sticky stacking, the closing line typing in. With reduced motion every delay is dropped and the page is shown finished.
