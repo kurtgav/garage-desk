@@ -6,7 +6,7 @@ import { AUTH_COOKIE_OPTIONS } from "@/lib/supabase/cookie-options";
 
 const STAFF_PREFIXES = ["/jobs", "/customers", "/dashboard", "/settings", "/profile", "/staff", "/set-password"];
 // Public app routes (PLAN Phase 5): no sign-in needed and never looked up as a customer token.
-const PUBLIC_PATHS = ["/", "/login", "/forgot-password", "/reset-password", "/auth/confirm", "/robots.txt"];
+const PUBLIC_PATHS = ["/", "/login", "/login/verify", "/forgot-password", "/reset-password", "/auth/confirm", "/robots.txt"];
 // generateLinkToken(): 32 random bytes, base64url → exactly 43 chars. Anything else can never be a link (D-093).
 const LINK_PATH = /^\/([A-Za-z0-9_-]{43})$/;
 // No route matches this, so Next serves the server-rendered /_not-found (status 404).
@@ -63,7 +63,9 @@ export async function proxy(request: NextRequest) {
   // so decide before render: outside the app's routes only "/{token}" can exist, and only if the lookup
   // finds it (same rate limit + lookup as the page). Server actions check the token themselves. A path that
   // cannot be a token gets the same 404 before any DB write or lookup (bot noise like /wp-login.php).
-  if (!isStaffPath && !PUBLIC_PATHS.includes(pathname) && !request.headers.has("next-action")) {
+  // Only a POST with next-action is a server action (Next ignores the header on GET), so only that skips the gate (D-109).
+  const isServerAction = request.method === "POST" && request.headers.has("next-action");
+  if (!isStaffPath && !PUBLIC_PATHS.includes(pathname) && !isServerAction) {
     const token = LINK_PATH.exec(pathname)?.[1];
     // Limited or limiter unavailable (fails closed, D-100): the same 404 as a failed lookup.
     if (!token || (await isRateLimited("publicView")) || !(await getPublicJob(token))) {

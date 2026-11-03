@@ -103,4 +103,13 @@ describe("countsAsCustomerView", () => {
     await getPublicJob("A".repeat(43));
     expect(lookup.rpc).toHaveBeenLastCalledWith("public_job_by_token_hash", expect.objectContaining({ p_count_view: true }));
   });
+
+  it.each(["x.png", "A".repeat(42), "A".repeat(44), `${"A".repeat(39)}.png`, `${"A".repeat(42)}=`])(
+    "getPublicJob(%j): not a link shape → null without any lookup (D-109)",
+    async (token) => {
+      lookup.rpc.mockClear();
+      expect(await getPublicJob(token)).toBeNull();
+      expect(lookup.rpc).not.toHaveBeenCalled();
+    },
+  );
 });

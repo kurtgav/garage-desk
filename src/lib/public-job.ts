@@ -68,6 +68,8 @@ export function countsAsCustomerView(userAgent: string | null, cookieHeader: str
 
 /** Looks up a job by raw token. Unknown, revoked or malformed → null (caller renders 404). Links never expire (D-053). */
 export async function getPublicJob(token: string): Promise<PublicJob | null> {
+  // Paths the proxy matcher skips (e.g. "/x.png") reach the page directly: never look those up (D-109).
+  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
   const h = await headers();
   const admin = createAdminClient();
   const { data, error } = await admin.rpc("public_job_by_token_hash", {
