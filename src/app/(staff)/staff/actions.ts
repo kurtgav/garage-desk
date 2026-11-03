@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth";
-import { GENERIC_ERROR, NAME_TAKEN, PG_UNIQUE_VIOLATION, staffErrorMessage } from "@/lib/data/errors";
+import { GENERIC_ERROR, nameErrorMessage, staffErrorMessage } from "@/lib/data/errors";
 import type { ActionResult, TempPassword } from "@/lib/data/types";
 import { fail, parseForm } from "@/lib/form";
 import { generateTempPassword } from "@/lib/password";
@@ -58,7 +58,7 @@ export async function createStaff(
     .insert({ id, full_name: input.data.full_name, role: "mechanic", active: true, must_change_password: true });
   if (profile.error) {
     await admin.auth.admin.deleteUser(id); // no half-made accounts
-    return fail(profile.error.code === PG_UNIQUE_VIOLATION ? NAME_TAKEN : GENERIC_ERROR);
+    return fail(nameErrorMessage(profile.error) ?? GENERIC_ERROR);
   }
   revalidatePath("/staff");
   return { ok: true, tempPassword };
@@ -95,9 +95,19 @@ export async function setStaffActive(_prev: ActionResult | null, formData: FormD
   );
 }
 
+/** Every MFA factor of the account (lost phone, D-110). False when any Auth call fails. */
+async function clearFactors(admin: ReturnType<typeof createAdminClient>, userId: string): Promise<boolean> {
+  const { data, error } = await admin.auth.admin.mfa.listFactors({ userId });
+  if (error) return false;
+  for (const f of data.factors) {
+    if ((await admin.auth.admin.mfa.deleteFactor({ id: f.id, userId })).error) return false;
+  }
+  return true;
+}
+
 /**
- * A new one-time temporary password for a mechanic, who must then set their own (D-106). Owners (incl. self) use
- * /profile or forgot password.
+ * A new one-time temporary password for a mechanic, who must then set their own (D-106), with two-step sign-in
+ * turned off so a lost phone does not lock them out (D-110). Owners (incl. self) use /profile or forgot password.
  */
 export async function resetStaffPassword(
   _prev: ActionResult<TempPassword> | null,
@@ -120,6 +130,8 @@ export async function resetStaffPassword(
   const admin = createAdminClient();
   const flagged = await admin.from("profiles").update({ must_change_password: true }).eq("id", id);
   if (flagged.error) return fail(GENERIC_ERROR);
+  // Before the new password: a temporary password is only ever handed out once the factors are gone.
+  if (!(await clearFactors(admin, id))) return fail(GENERIC_ERROR);
   const tempPassword = generateTempPassword();
   const { error } = await admin.auth.admin.updateUserById(id, { password: tempPassword });
   if (error) return fail(GENERIC_ERROR);

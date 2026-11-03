@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireStaff } from "@/lib/auth";
-import { GENERIC_ERROR, NAME_TAKEN, PG_UNIQUE_VIOLATION, staffErrorMessage, TOO_MANY_ATTEMPTS } from "@/lib/data/errors";
+import { GENERIC_ERROR, nameErrorMessage, staffErrorMessage, TOO_MANY_ATTEMPTS } from "@/lib/data/errors";
 import { AVATAR_BUCKET } from "@/lib/data/profile";
 import type { ActionResult } from "@/lib/data/types";
 import { fail, optionalText, parseForm } from "@/lib/form";
@@ -37,8 +37,7 @@ export async function updateProfile(_prev: ActionResult | null, formData: FormDa
     .update({ full_name: input.data.full_name, phone: input.data.phone ?? null, about: input.data.about ?? null })
     .eq("id", staff.id)
     .select("id");
-  if (error?.code === PG_UNIQUE_VIOLATION) return fail(NAME_TAKEN);
-  if (error || data.length === 0) return fail(staffErrorMessage(error));
+  if (error || data.length === 0) return fail(nameErrorMessage(error) ?? staffErrorMessage(error));
   revalidatePath("/", "layout");
   return { ok: true };
 }
@@ -127,6 +126,53 @@ export async function changePassword(_prev: ActionResult | null, formData: FormD
   const db = await createClient();
   const { error } = await db.auth.updateUser({ password: input.data.new_password });
   if (error) return fail(passwordErrorMessage(error.code) ?? GENERIC_ERROR);
+  return { ok: true };
+}
+
+// Two-step sign-in (D-110): one TOTP factor per account. Auth checks the codes; no Supabase text reaches the UI.
+const BAD_CODE = "That code didn't work. Check the code in your authenticator app and try again.";
+
+type Db = Awaited<ReturnType<typeof createClient>>;
+
+/** Removes this user's TOTP factors in `status` (unverified leftovers, or the verified one to turn it off). */
+async function removeTotp(db: Db, status: "verified" | "unverified"): Promise<boolean> {
+  const { data, error } = await db.auth.mfa.listFactors();
+  if (error) return false;
+  for (const f of data.all.filter((f) => f.factor_type === "totp" && f.status === status)) {
+    if ((await db.auth.mfa.unenroll({ factorId: f.id })).error) return false;
+  }
+  return true;
+}
+
+/** "Turn on": a new, unverified factor. The QR code (data URI) and secret go to this user's own page only. */
+export async function startTwoStep(): Promise<ActionResult<{ qrCode: string; secret: string }>> {
+  await requireStaff();
+  const db = await createClient();
+  if (!(await removeTotp(db, "unverified"))) return fail(GENERIC_ERROR);
+  const { data, error } = await db.auth.mfa.enroll({ factorType: "totp", issuer: "Garage Desk" });
+  if (error) return fail(GENERIC_ERROR);
+  return { ok: true, qrCode: data.totp.qr_code, secret: data.totp.secret };
+}
+
+/** The first code from the app verifies the new factor: two-step sign-in is on, this session is aal2. */
+export async function confirmTwoStep(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+  await requireStaff();
+  const code = String(formData.get("code") ?? "").replace(/\s/g, "");
+  if (!/^\d{6}$/.test(code)) return fail(BAD_CODE);
+  const db = await createClient();
+  const { data, error } = await db.auth.mfa.listFactors();
+  const factor = data?.all.find((f) => f.factor_type === "totp" && f.status === "unverified");
+  if (error || !factor) return fail(GENERIC_ERROR);
+  if ((await db.auth.mfa.challengeAndVerify({ factorId: factor.id, code })).error) return fail(BAD_CODE);
+  revalidatePath("/profile");
+  return { ok: true };
+}
+
+/** "Turn off": Auth only lets an aal2 session remove a verified factor, which requireStaff guarantees here. */
+export async function turnOffTwoStep(): Promise<ActionResult> {
+  await requireStaff();
+  if (!(await removeTotp(await createClient(), "verified"))) return fail(GENERIC_ERROR);
+  revalidatePath("/profile");
   return { ok: true };
 }
 

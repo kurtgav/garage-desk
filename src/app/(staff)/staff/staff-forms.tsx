@@ -146,7 +146,7 @@ function ResetPasswordForm({ member }: { member: Member }) {
       <>
         <DialogHeader>
           <DialogTitle>New password for {member.fullName}</DialogTitle>
-          <DialogDescription>Their old password no longer works.</DialogDescription>
+          <DialogDescription>Their old password no longer works and two-step sign-in is off. They can turn it on again on their profile.</DialogDescription>
         </DialogHeader>
         <TempPasswordNotice password={state.tempPassword} />
         <DialogFooter>
@@ -164,7 +164,8 @@ function ResetPasswordForm({ member }: { member: Member }) {
       <DialogHeader>
         <DialogTitle>Reset {member.fullName}&apos;s password?</DialogTitle>
         <DialogDescription>
-          We replace their password with a temporary one and show it to you once. Their old password stops working.
+          We replace their password with a temporary one and show it to you once. Their old password stops working, and
+          two-step sign-in is turned off so they can get back in without their phone.
         </DialogDescription>
       </DialogHeader>
       {state && !state.ok && !pending && <Alert tone="danger">{state.error}</Alert>}

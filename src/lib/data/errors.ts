@@ -27,8 +27,16 @@ export function staffErrorMessage(error: { message?: string; code?: string } | n
 }
 
 /** profiles_full_name_unique (D-091): nobody can pose as a colleague on the timeline. */
-export const NAME_TAKEN = "Another staff member already uses that name.";
-export const PG_UNIQUE_VIOLATION = "23505";
+const NAME_TAKEN = "Another staff member already uses that name.";
+/** profiles_full_name_reserved (D-111): the timeline already names the customer. */
+const NAME_RESERVED = "That name is reserved. Use your own name.";
+
+/** A staff name the DB refused (a colleague's, look-alikes included, or reserved), else null. */
+export function nameErrorMessage(error: { code?: string; message?: string } | null): string | null {
+  if (error?.code === "23505") return NAME_TAKEN;
+  if (error?.message?.includes("profiles_full_name_reserved")) return NAME_RESERVED;
+  return null;
+}
 
 export const INVALID_LINK = "This link is no longer valid.";
 export const TOO_MANY_ATTEMPTS = "Too many attempts. Please wait a minute and try again.";

@@ -12,6 +12,7 @@ export const metadata: Metadata = { title: "Set your own password" };
 export default async function SetPasswordPage() {
   const staff = await getStaff();
   if (!staff) redirect("/login");
+  if (staff.mfaPending) redirect("/login/verify"); // same order as requireStaff
   if (!staff.mustChangePassword) redirect(roleHome(staff.role));
 
   return (

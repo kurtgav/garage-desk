@@ -1,6 +1,6 @@
 "use client";
 
-import { ImageUp, LogOut } from "lucide-react";
+import { ImageUp, LogOut, ShieldCheck } from "lucide-react";
 import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/avatar";
 import { submitRequired } from "@/components/form-submit";
@@ -21,7 +21,16 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Textarea } from "@/components/ui/textarea";
 import type { ActionResult } from "@/lib/data/types";
-import { changePassword, removeAvatar, signOutEverywhere, updateProfile, uploadAvatar } from "./actions";
+import {
+  changePassword,
+  confirmTwoStep,
+  removeAvatar,
+  signOutEverywhere,
+  startTwoStep,
+  turnOffTwoStep,
+  updateProfile,
+  uploadAvatar,
+} from "./actions";
 import { PASSWORD_HINT, PASSWORD_REQUIRED, PHOTO_TYPES, passwordErrors, photoError } from "./profile-checks";
 
 const ABOUT_MAX = 500;
@@ -198,6 +207,148 @@ export function PasswordForm() {
       </div>
       {state && !pending && (state.ok ? <Alert tone="success">Password changed.</Alert> : <Alert tone="danger">{state.error}</Alert>)}
     </form>
+  );
+}
+
+type TwoStepSetup = { qrCode: string; secret: string };
+
+/** Off → Turn on → scan + first code → On; On → Turn off (confirmed). `on` comes from Auth via the page (D-110). */
+export function TwoStepSignIn({ on }: { on: boolean }) {
+  const setupRef = useRef<HTMLDivElement>(null);
+  const [setup, setSetup] = useState<TwoStepSetup | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [startState, start, starting] = useActionState<ActionResult | null, FormData>(async () => {
+    setNotice(null);
+    const result = await startTwoStep();
+    if (result.ok) setSetup({ qrCode: result.qrCode, secret: result.secret });
+    return result;
+  }, null);
+  const [confirmState, confirm, confirming] = useActionState<ActionResult | null, FormData>(async (prev, formData) => {
+    const result = await confirmTwoStep(prev, formData);
+    if (result.ok) {
+      setSetup(null);
+      setNotice("Two-step sign-in is on. Keep your phone at hand when you sign in.");
+    }
+    return result;
+  }, null);
+
+  // The Turn on button is gone once the steps show: move focus to them so the instructions are read next.
+  useEffect(() => setupRef.current?.focus(), [setup]);
+
+  const done = notice && <Alert tone="success">{notice}</Alert>;
+
+  if (on) {
+    return (
+      <div className="grid gap-4">
+        <div>
+          <TurnOffTwoStep onDone={() => setNotice("Two-step sign-in is off. You sign in with your password only.")} />
+        </div>
+        {done}
+      </div>
+    );
+  }
+
+  if (!setup) {
+    return (
+      <div className="grid gap-4">
+        <form action={start}>
+          <Button type="submit" loading={starting}>
+            <ShieldCheck aria-hidden />
+            Turn on
+          </Button>
+        </form>
+        {startState && !startState.ok && !starting && <Alert tone="danger">{startState.error}</Alert>}
+        {done}
+      </div>
+    );
+  }
+
+  return (
+    <div ref={setupRef} tabIndex={-1} className="grid gap-5 outline-none">
+      <ol className="grid list-decimal gap-5 pl-5 text-sm text-ink marker:font-medium marker:text-muted">
+        <li className="grid gap-3 pl-1">
+          <p>Scan this QR code with an authenticator app on your phone, such as Google Authenticator or Microsoft Authenticator.</p>
+          {/* Auth returns the QR as an SVG data URI (CSP img-src allows data:); never injected as markup. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={setup.qrCode}
+            alt="QR code that adds Garage Desk to your authenticator app"
+            width={176}
+            height={176}
+            className="size-44 rounded-lg border border-line bg-white p-2"
+          />
+          <Field id="totp-secret" label="Can't scan it? Enter this setup key in the app" className="sm:max-w-sm">
+            <Input readOnly value={setup.secret} spellCheck={false} className="bg-raised font-mono text-sm tracking-wider" />
+          </Field>
+        </li>
+        <li className="pl-1">
+          <form action={confirm} className="grid gap-4">
+            <Field id="totp-code" label="Enter the 6-digit code the app shows" className="sm:max-w-56">
+              <Input
+                name="code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                title="The 6 digits from your authenticator app"
+                required
+                className="tracking-[0.3em] tabular-nums"
+              />
+            </Field>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" loading={confirming}>
+                Confirm and turn on
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => setSetup(null)} disabled={confirming}>
+                Cancel
+              </Button>
+            </div>
+            {confirmState && !confirmState.ok && !confirming && <Alert tone="danger">{confirmState.error}</Alert>}
+          </form>
+        </li>
+      </ol>
+    </div>
+  );
+}
+
+function TurnOffTwoStep({ onDone }: { onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [state, action, pending] = useActionState<ActionResult | null, FormData>(async () => {
+    const result = await turnOffTwoStep();
+    if (result.ok) {
+      setOpen(false);
+      onDone();
+    }
+    return result;
+  }, null);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="secondary">Turn off</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <form action={action} className="grid gap-4">
+          <DialogHeader>
+            <DialogTitle>Turn off two-step sign-in?</DialogTitle>
+            <DialogDescription>
+              Signing in will only need your password again. You can turn it back on at any time.
+            </DialogDescription>
+          </DialogHeader>
+          {state && !state.ok && !pending && <Alert tone="danger">{state.error}</Alert>}
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="ghost">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button type="submit" loading={pending}>
+              Turn off
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

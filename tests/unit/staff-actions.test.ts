@@ -12,9 +12,13 @@ const mocks = vi.hoisted(() => {
     updateUserErrors: [] as unknown[], // one per call, in order; then no error
     profileRow: { role: "mechanic", active: true } as { role: string; active: boolean } | null,
     flagError: null as unknown,
+    factors: [] as { id: string }[],
+    listFactorsError: null as unknown,
+    deleteFactorError: null as unknown,
   };
   return {
     state,
+    deleteFactor: vi.fn(),
     requireOwner: vi.fn(),
     createUser: vi.fn(),
     deleteUser: vi.fn(),
@@ -34,6 +38,13 @@ vi.mock("@/lib/supabase/admin", () => ({
         createUser: async (attrs: unknown) => (mocks.createUser(attrs), mocks.state.created),
         deleteUser: mocks.deleteUser,
         updateUserById: async (id: string, attrs: unknown) => (mocks.updateUserById(id, attrs), { error: mocks.state.updateUserErrors.shift() ?? null }),
+        mfa: {
+          listFactors: async () =>
+            mocks.state.listFactorsError
+              ? { data: null, error: mocks.state.listFactorsError }
+              : { data: { factors: mocks.state.factors }, error: null },
+          deleteFactor: async (params: unknown) => (mocks.deleteFactor(params), { data: null, error: mocks.state.deleteFactorError }),
+        },
       },
     },
     from: () => ({
@@ -73,6 +84,9 @@ beforeEach(() => {
     updateUserErrors: [],
     profileRow: { role: "mechanic", active: true },
     flagError: null,
+    factors: [],
+    listFactorsError: null,
+    deleteFactorError: null,
   });
 });
 
@@ -209,6 +223,22 @@ describe("resetStaffPassword", () => {
     expect((await resetStaffPassword(null, form({ id: MECH }))).ok).toBe(true);
     expect(mocks.flag).toHaveBeenCalledWith(MECH, { must_change_password: true });
     expect(mocks.flag.mock.invocationCallOrder[0]).toBeLessThan(mocks.updateUserById.mock.invocationCallOrder[0]);
+  });
+
+  it("turns off their two-step sign-in (lost phone), before the temporary password is set (D-110)", async () => {
+    mocks.state.factors = [{ id: "f1" }, { id: "f2" }];
+    expect((await resetStaffPassword(null, form({ id: MECH }))).ok).toBe(true);
+    expect(mocks.deleteFactor.mock.calls).toEqual([[{ id: "f1", userId: MECH }], [{ id: "f2", userId: MECH }]]);
+    expect(mocks.deleteFactor.mock.invocationCallOrder[1]).toBeLessThan(mocks.updateUserById.mock.invocationCallOrder[0]);
+  });
+
+  it.each([
+    ["listing", { listFactorsError: { message: "boom" } }],
+    ["deleting", { deleteFactorError: { message: "boom" } }],
+  ])("%s their factors fails → the whole reset fails, no temporary password", async (_name, patch) => {
+    Object.assign(mocks.state, { factors: [{ id: "f1" }], ...patch });
+    expect(await resetStaffPassword(null, form({ id: MECH }))).toEqual({ ok: false, error: "Something went wrong. Please try again." });
+    expect(mocks.updateUserById).not.toHaveBeenCalled();
   });
 
   it("the flag can't be set → error, the password is left alone", async () => {

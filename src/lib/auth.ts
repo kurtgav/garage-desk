@@ -13,6 +13,8 @@ export interface Staff {
   role: StaffRole;
   /** Signed in with a temporary password from the owner: must set their own first (D-106). */
   mustChangePassword: boolean;
+  /** Two-step sign-in is on, but this session has not entered the authenticator code yet (aal1, D-110). */
+  mfaPending: boolean;
 }
 
 /** Current staff member, or null (not signed in, no profile, or inactive). Cached per request. */
@@ -29,22 +31,28 @@ export const getStaff = cache(async (): Promise<Staff | null> => {
     .eq("id", user.id)
     .maybeSingle();
   if (!data || !data.active) return null;
+  // Factors from Auth (getUser above, never the cookie's copy) and the level of the token getUser just verified.
+  const hasFactor = user.factors?.some((f) => f.status === "verified") ?? false;
+  const mfaPending = hasFactor && (await supabase.auth.mfa.getAuthenticatorAssuranceLevel()).data?.currentLevel !== "aal2";
   return {
     id: data.id,
     fullName: data.full_name,
     email: user.email ?? "",
     role: data.role as StaffRole,
     mustChangePassword: data.must_change_password,
+    mfaPending,
   };
 });
 
 /**
- * Staff who may use the app: signed out → /login; a temporary password → /set-password until they choose their
- * own (D-106). Every staff page (via the layout) and every staff action goes through here.
+ * Staff who may use the app: signed out → /login; two-step sign-in on but no code yet → /login/verify (D-110);
+ * a temporary password → /set-password until they choose their own (D-106). Every staff page (via the layout)
+ * and every staff action goes through here.
  */
 export async function requireStaff(): Promise<Staff> {
   const staff = await getStaff();
   if (!staff) redirect("/login");
+  if (staff.mfaPending) redirect("/login/verify");
   if (staff.mustChangePassword) redirect("/set-password");
   return staff;
 }

@@ -127,6 +127,17 @@ describe("updateProfile", () => {
       error: "Another staff member already uses that name.",
     });
   });
+
+  it("a reserved name (check constraint) → NAME_RESERVED, not raw DB text (D-111)", async () => {
+    mocks.state.updateResult = {
+      data: null,
+      error: { code: "23514", message: 'new row for relation "profiles" violates check constraint "profiles_full_name_reserved"' },
+    };
+    expect(await updateProfile(null, form({ full_name: "Customer" }))).toEqual({
+      ok: false,
+      error: "That name is reserved. Use your own name.",
+    });
+  });
 });
 
 describe("uploadAvatar", () => {

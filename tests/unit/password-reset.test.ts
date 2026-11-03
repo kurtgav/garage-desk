@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   updateUser: vi.fn(async () => ({ error: null }) as { error: unknown }),
   signInWithPassword: vi.fn(),
   signOut: vi.fn(),
+  aal: vi.fn(async () => ({ data: { currentLevel: "aal1", nextLevel: "aal1" }, error: null }) as { data: unknown; error: unknown }),
   profile: vi.fn(),
   after: vi.fn(),
 }));
@@ -36,6 +37,7 @@ vi.mock("@/lib/supabase/server", () => ({
       updateUser: mocks.updateUser,
       signInWithPassword: mocks.signInWithPassword,
       signOut: mocks.signOut,
+      mfa: { getAuthenticatorAssuranceLevel: mocks.aal },
     },
     from: () => {
       const chain = { select: () => chain, eq: () => chain, maybeSingle: async () => ({ data: mocks.profile(), error: null }) };
@@ -191,6 +193,14 @@ describe("signIn → role home", () => {
     mocks.isRateLimited.mockResolvedValueOnce(blocked);
     expect(await signIn(null, form({ email: "a@b.bg", password: "x" }))).toEqual({ ok: false, error, email: "a@b.bg" });
     expect(mocks.signInWithPassword).not.toHaveBeenCalled();
+  });
+
+  it("two-step sign-in on → /login/verify before the profile is read (RLS hides it at aal1, D-110)", async () => {
+    mocks.signInWithPassword.mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
+    mocks.aal.mockResolvedValueOnce({ data: { currentLevel: "aal1", nextLevel: "aal2" }, error: null });
+    expect(await redirectOf(() => signIn(null, form({ email: "a@b.bg", password: "x" })))).toBe("/login/verify");
+    expect(mocks.profile).not.toHaveBeenCalled();
+    expect(mocks.signOut).not.toHaveBeenCalled();
   });
 
   it("inactive → signed out, generic error", async () => {
