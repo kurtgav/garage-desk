@@ -1,89 +1,178 @@
-import {
-  Calculator,
-  ClipboardPlus,
-  Layers,
-  LayoutDashboard,
-  Link2,
-  KeyRound,
-  Percent,
-  Search,
-  Send,
-  Smartphone,
-  Users,
-  Wrench,
-} from "lucide-react";
+import { Calculator, Check, ClipboardList, KeyRound, Smartphone, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { delay, lpContainer, SectionLabel } from "./ui";
+import { Eyebrow, LpCta, delay, lpContainer, lpH2, lpH3, lpH4 } from "./ui";
+
+type Props = { cta: { href: string; label: string } };
 
 const STEPS = [
-  { icon: ClipboardPlus, title: "Log the job", body: "Pick the car, assign a mechanic and write down what needs doing." },
-  { icon: Calculator, title: "Build the quote", body: "Add parts and labour. Labour takes the hourly rate from Settings." },
-  { icon: Send, title: "Send the link", body: "Copy it or share it on WhatsApp. One private link per job." },
-  { icon: Smartphone, title: "Approve on the phone", body: "The customer checks net, VAT and total, then taps Approve or Decline." },
-  { icon: Wrench, title: "Do the work", body: "Start work, mark it ready. The customer’s page follows every step." },
-  { icon: KeyRound, title: "Hand over the keys", body: "Mark it collected. Revenue counts in the month the car leaves." },
+  {
+    icon: ClipboardList,
+    title: "Log the job",
+    body: "Customer, car and what is wrong. The job gets its number, like GD-0099, and a mechanic.",
+  },
+  {
+    icon: Calculator,
+    title: "Build the quote",
+    body: "Parts and labour lines. The labour rate comes from Settings, and VAT is added once on the total.",
+  },
+  {
+    icon: Smartphone,
+    title: "Approve on the phone",
+    body: "Send the link by copy or WhatsApp. The customer checks the total and taps Approve or Decline.",
+  },
+  {
+    icon: KeyRound,
+    title: "Hand over the keys",
+    body: "Start the work, mark it ready, then collected. Revenue counts in the month the car leaves.",
+  },
 ];
 
-const FEATURES = [
-  { icon: Link2, title: "Customer approval link", body: "The customer sees the car, the quote and the status, and approves without an account or an app." },
-  { icon: Percent, title: "Exact VAT on the total", body: "Lines are stored exactly. VAT is worked out once on the job total and rounded once, to the cent." },
-  { icon: Layers, title: "Quote versions", body: "Change a line after sending and the quote becomes v2. The customer approves the new total, never an old one." },
-  { icon: Users, title: "Owner and mechanic roles", body: "Mechanics see their own jobs. Revenue, settings, staff accounts and other mechanics’ work stay with the owner." },
-  { icon: LayoutDashboard, title: "Owner dashboard", body: "Revenue this month, open jobs, quotes awaiting approval and cars ready for collection, at a glance." },
-  { icon: Search, title: "Customer search", body: "Search customers by name, phone or plate from the top bar or the Customers page." },
+// GD-0099's day on the timeline (sample times).
+const DAY = [
+  { time: "09:12", label: "Created" },
+  { time: "09:40", label: "Quote sent" },
+  { time: "10:31", label: "Approved" },
+  { time: "16:50", label: "Ready" },
+  { time: "17:30", label: "Collected" },
 ];
 
-/** Blue band (reference "How to Rent a Locker"): centred intro, white steps card with dashed connectors, then the feature cards. */
-export function HowItWorks() {
+const CHANNELS = ["WhatsApp", "Viber", "SMS", "Email", "Messenger", "Telegram"];
+
+/** Reference "how it works": 2×2 cards around a round centre, a timed progress bar, two tap cards, a wide closer. */
+export function HowItWorks({ cta }: Props) {
   return (
-    <div className="lp-pegboard lp-on-dark py-20 lg:py-[120px]">
-      <div className={lpContainer}>
-        <section id="how-it-works" aria-labelledby="how-title">
-          <div className="mx-auto max-w-[45rem] text-center">
-            <div data-reveal>
-              <SectionLabel onBlue>How it works</SectionLabel>
-            </div>
-            <h2 id="how-title" data-reveal className="mt-3 font-lp-display text-balance text-[1.75rem] leading-[1.2] text-white sm:text-[2.5rem] lg:text-5xl">
-              From the first call to collection.
-            </h2>
-            <p data-reveal style={delay(90)} className="mt-4 text-lg leading-[1.5] text-white">
-              Six steps on one record. The customer never needs an account: the link is enough.
-            </p>
-          </div>
-          <ol data-reveal="grow" className="lp-steps mt-12 grid gap-x-6 gap-y-10 rounded-[24px] bg-white px-6 py-10 sm:grid-cols-2 lg:mt-16 lg:grid-cols-3 lg:px-10 lg:py-14">
-            {STEPS.map((step, i) => (
-              <li key={step.title} className="relative flex flex-col items-center text-center" style={delay(i * 120)}>
-                <span className="lp-step-icon relative z-10 grid size-16 place-items-center rounded-full bg-white text-lp-blue ring-1 ring-lp-n30">
-                  <step.icon aria-hidden className="size-7" strokeWidth={1.5} />
-                </span>
-                {/* Dashed connector to the next step in the row; it fills blue once the card is on screen. */}
-                <span aria-hidden className={cn("lp-step-line absolute top-8 left-[calc(50%+44px)] hidden h-0 w-[calc(100%-88px+24px)]", i % 3 !== 2 && "lg:block")} />
-                <h3 className="mt-5 font-lp-display text-xl leading-[1.5] sm:text-2xl">{step.title}</h3>
-                <p className="mt-2 max-w-[19rem] text-base leading-[1.5] text-lp-body">{step.body}</p>
-              </li>
-            ))}
-          </ol>
-        </section>
+    <section id="how-it-works" aria-labelledby="how-title" className={cn(lpContainer, "pt-28 lg:pt-[150px]")}>
+      <header data-reveal className="mx-auto max-w-[720px] text-center">
+        <Eyebrow>How it works</Eyebrow>
+        <h2 id="how-title" className={cn(lpH2, "mt-4")}>
+          From the first call to the keys
+        </h2>
+        <p className="mx-auto mt-5 max-w-[36rem] text-lg text-pretty text-lp-body">
+          Four steps on one job card. The customer needs only their phone, and only for one of them.
+        </p>
+      </header>
 
-        <section id="features" aria-labelledby="features-title" className="mt-16 lg:mt-20">
-          <h2 id="features-title" data-reveal className="font-lp-display text-balance text-2xl leading-[1.2] text-white sm:text-[2rem]">
-            Everything a small garage needs, nothing it doesn’t.
-          </h2>
-          <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {FEATURES.map((f, i) => (
-              <li key={f.title} data-reveal style={delay((i % 3) * 90)}>
-                <div className="group h-full rounded-[24px] bg-white p-6 transition-colors duration-300 ease-in-out hover:bg-lp-blue-hover">
-                  <span className="grid size-[60px] place-items-center rounded-full bg-lp-blue text-white transition-colors duration-300 group-hover:bg-white group-hover:text-lp-blue">
-                    <f.icon aria-hidden className="size-6" strokeWidth={1.5} />
-                  </span>
-                  <h3 className="mt-10 font-lp-display text-2xl leading-[1.5] transition-colors duration-300 group-hover:text-white">{f.title}</h3>
-                  <p className="mt-2 text-base leading-[1.5] text-lp-body transition-colors duration-300 group-hover:text-lp-n40">{f.body}</p>
-                </div>
+      <div className="relative mt-14 grid gap-3 sm:grid-cols-2 lg:mt-16">
+        {STEPS.map((s, i) => (
+          <article
+            key={s.title}
+            data-reveal
+            style={delay(i * 80)}
+            className={cn(
+              "flex flex-col justify-between gap-6 rounded-[24px] bg-lp-cream p-7 sm:min-h-[240px] sm:gap-10 lg:min-h-[280px] lg:p-10",
+              i % 2 === 1 && "sm:items-end sm:text-right",
+            )}
+          >
+            <span className="flex items-center gap-3 font-lp-mono text-sm text-lp-blue">
+              <s.icon aria-hidden className="size-5" strokeWidth={1.75} />
+              Step {i + 1}
+            </span>
+            <div className="max-w-[24rem]">
+              <h3 className={lpH3}>{s.title}</h3>
+              <p className="mt-3 text-pretty text-lp-body">{s.body}</p>
+            </div>
+          </article>
+        ))}
+        <span
+          aria-hidden
+          className="absolute top-1/2 left-1/2 hidden size-32 -translate-1/2 place-items-center rounded-full bg-lp-blue text-white ring-[14px] ring-white sm:grid"
+        >
+          <Wrench className="size-10" strokeWidth={1.5} />
+        </span>
+      </div>
+
+      <figure data-reveal className="lp-day mt-3 rounded-[24px] bg-lp-paper p-7 shadow-[inset_0_0_0_1px_var(--color-lp-line)] lg:p-10">
+        <figcaption className="flex flex-wrap items-center justify-between gap-3">
+          <span className={lpH4}>GD-0099 · Renault Clio, CA 1234 BP</span>
+          <span className="rounded-full bg-white px-3 py-1.5 font-lp-mono text-[13px] shadow-[0_0_0_1px_var(--color-lp-line)]">
+            Same day, first call to keys
+          </span>
+        </figcaption>
+        <div className="relative mt-10 hidden h-2 rounded-full bg-lp-sky sm:block">
+          <span className="lp-dayline absolute inset-0 rounded-full" />
+        </div>
+        <ol className="mt-8 grid gap-4 sm:mt-0 sm:flex sm:justify-between">
+          {DAY.map((d, i) => (
+            <li
+              key={d.label}
+              className={cn(
+                "flex items-center gap-3 sm:-mt-4 sm:flex-col",
+                i === 0 ? "sm:items-start" : i === DAY.length - 1 ? "sm:items-end sm:text-right" : "sm:text-center",
+              )}
+            >
+              <span aria-hidden className="grid size-6 shrink-0 place-items-center rounded-full bg-lp-blue text-white ring-4 ring-lp-paper">
+                <Check className="size-3.5" strokeWidth={3} />
+              </span>
+              <span className="flex items-baseline gap-2 sm:flex-col sm:gap-1">
+                <span className="font-lp-mono text-sm text-lp-blue">{d.time}</span>
+                <span>{d.label}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+      </figure>
+
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        <TapCard
+          tone="bg-lp-cream"
+          who="The customer"
+          taps="1 tap"
+          body="Open the link, check the car, the lines and the total, tap Approve. Nothing to install, nothing to sign up for."
+          keys={["Approve"]}
+        />
+        <TapCard
+          tone="bg-lp-sky"
+          who="Staff"
+          taps="2 taps"
+          body="Copy the link, or press Share via WhatsApp and the message is written for you. The timeline shows when it was sent."
+          keys={["Copy", "Share via WhatsApp"]}
+          d={80}
+        />
+      </div>
+
+      <div
+        data-reveal
+        className="mt-3 grid overflow-hidden rounded-[24px] bg-lp-cream lg:grid-cols-[minmax(0,1fr)_380px]"
+      >
+        <div className="flex flex-col justify-between gap-10 p-7 lg:p-12">
+          <p className="max-w-[34rem] font-lp-display text-2xl leading-[1.2] font-semibold tracking-[-0.03em] text-balance lg:text-[2rem]">
+            No account, no app. The link opens in the browser already on the customer’s phone.
+          </p>
+          <LpCta href={cta.href} label={cta.label} className="self-start" />
+        </div>
+        <div aria-hidden className="lp-marquee relative h-[220px] overflow-hidden lg:h-auto lg:min-h-[340px]">
+          <ul className="flex animate-lp-marquee-y flex-col gap-3 px-7 pb-3 lg:px-10 motion-reduce:animate-none">
+            {[...CHANNELS, ...CHANNELS].map((c, i) => (
+              <li key={c + i} className="rounded-[12px] bg-white px-5 py-4 font-lp-mono text-sm">
+                Link pasted into {c}
               </li>
             ))}
           </ul>
-        </section>
+        </div>
       </div>
-    </div>
+    </section>
+  );
+}
+
+function TapCard({ tone, who, taps, body, keys, d = 0 }: { tone: string; who: string; taps: string; body: string; keys: string[]; d?: number }) {
+  return (
+    <article data-reveal style={delay(d)} className={cn("flex flex-col gap-8 rounded-[24px] p-7 lg:p-10", tone)}>
+      <p className="font-lp-mono text-sm tracking-[0.14em] text-lp-blue uppercase">{who}</p>
+      <p className="font-lp-display text-[3.5rem] leading-none font-semibold tracking-[-0.05em] lg:text-[76px] lg:tracking-[-2.56px]">{taps}</p>
+      <p className="max-w-[28rem] text-pretty text-lp-body">{body}</p>
+      <div aria-hidden className="mt-auto flex flex-wrap gap-2">
+        {keys.map((k, i) => (
+          <span
+            key={k}
+            className={cn(
+              "rounded-[10px] px-4 py-3 text-[15px]",
+              i === 0 && keys.length === 1 ? "bg-lp-blue text-white" : "bg-white text-lp-ink",
+            )}
+          >
+            {k}
+          </span>
+        ))}
+      </div>
+    </article>
   );
 }

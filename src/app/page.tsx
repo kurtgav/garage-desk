@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
 import { Closing, LandingFooter } from "@/components/landing/closing";
+import { Compare } from "@/components/landing/compare";
 import { Faq } from "@/components/landing/faq";
+import { Features } from "@/components/landing/features";
 import { landingFonts } from "@/components/landing/fonts";
 import { Hero } from "@/components/landing/hero";
 import { HowItWorks } from "@/components/landing/how-it-works";
 import { LandingHeader } from "@/components/landing/landing-nav";
 import { Reveal } from "@/components/landing/reveal";
 import { Security } from "@/components/landing/security";
-import { Showcase } from "@/components/landing/showcase";
-import { lpContainer } from "@/components/landing/ui";
-import { Why } from "@/components/landing/why";
+import { Tour } from "@/components/landing/tour";
 import { getStaff, roleHome } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
@@ -39,16 +39,13 @@ export default async function Home() {
       <Reveal />
       <LandingHeader cta={cta} />
       <main>
-        <div className={lpContainer}>
-          <Hero cta={cta} />
-          <Why />
-        </div>
-        <HowItWorks />
-        <div className={lpContainer}>
-          <Showcase cta={cta} />
-          <Security />
-          <Faq />
-        </div>
+        <Hero cta={cta} />
+        <HowItWorks cta={cta} />
+        <Features />
+        <Tour />
+        <Compare />
+        <Security />
+        <Faq />
         <Closing cta={cta} />
       </main>
       <LandingFooter cta={cta} />

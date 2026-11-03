@@ -64,3 +64,7 @@ supabase/.branches/
 # User guide PDF embeds the demo staff passwords (built from CREDENTIALS.local.md); never commit it
 userguide.pdf
 userguide*.pdf
+
+# Design working files (screenshots, reports) and source pictures before processing
+.taste-skill/
+/assets/

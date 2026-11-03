@@ -165,11 +165,12 @@
 }
 
 /* ==========================================================================
- * Landing: public pages only (/, /login, /forgot-password, /reset-password).
- * Visual language reverse-engineered from the client's reference (docs/DESIGN.md "Landing page").
+ * Landing: public pages only (/, /login, /forgot-password, /reset-password, 404).
+ * Visual language rebuilt after the client's second reference (D-112): Instrument Sans + Space Mono,
+ * warm ink on white, cream and sky fields, 10 / 24 / 999px radii, a dithered picture of Vitosha.
  * Everything below is additive: lp-* tokens and rules scoped under .lp, so the staff app does not change.
- * Contrast (AA): white/lp-blue 5.3 · lp-blue/white 5.3 · lp-body/white 6.3 · lp-body/lp-n20 5.8
- *   white/lp-blue-hover 10.5 · lp-blue/lp-surface 4.5 · white/lp-ink 19
+ * Contrast (AA): lp-ink/white 17 · lp-body/white 6.6 · lp-body/lp-cream 5.8 · lp-blue/white 5.3
+ *   lp-blue/lp-cream 4.9 · lp-blue/lp-sky 5.0 · white/lp-blue 5.3 · lp-ink/lp-cyan 15
  * ========================================================================== */
 @theme {
   --color-lp-blue: #0c6ace;
@@ -177,24 +178,53 @@
   --color-lp-blue-pressed: #00254c;
   --color-lp-surface: #e0effe;
   --color-lp-border: #aac3dd;
-  --color-lp-ink: #101010;
-  --color-lp-body: #606060;
+  --color-lp-ink: #191814;
+  --color-lp-body: #5f5d55;
+  --color-lp-cream: #f1f2e5;
+  --color-lp-paper: #f8f9f2;
+  --color-lp-sky: #e9f5ff;
+  --color-lp-cyan: #ccf9ff;
+  --color-lp-line: #dcdccf;
   --color-lp-n20: #f5f5f5;
   --color-lp-n30: #ededed;
   --color-lp-n40: #d6d6d6;
   --color-lp-n50: #c2c2c2;
   --color-lp-n80: #383838;
-  /* Webflow "outQuart", the reference's easing for every reveal and hover. */
   --ease-lp: cubic-bezier(0.25, 1, 0.5, 1);
-  --animate-lp-rise: lp-rise 1000ms cubic-bezier(0.25, 1, 0.5, 1) both;
+  --animate-lp-rise: lp-rise 900ms cubic-bezier(0.25, 1, 0.5, 1) both;
+  --animate-lp-row: lp-row 500ms cubic-bezier(0.25, 1, 0.5, 1) both;
+  --animate-lp-type: lp-type 1200ms steps(40, end) both;
+  --animate-lp-marquee-x: lp-marquee-x 70s linear infinite;
+  --animate-lp-marquee-y: lp-marquee-y 18s linear infinite;
   /* Sign-in pages: the card's one entrance, and its layered shadow (hairline ring, contact, wide soft blue). */
   --animate-lp-auth-in: lp-auth-in 250ms ease-out both;
-  --shadow-lp-card: 0 0 0 1px rgb(16 16 16 / 0.05), 0 1px 2px rgb(16 16 16 / 0.06), 0 28px 56px -24px rgb(0 37 76 / 0.2);
+  --shadow-lp-card: 0 0 0 1px rgb(25 24 20 / 0.05), 0 1px 2px rgb(25 24 20 / 0.06), 0 28px 56px -24px rgb(0 37 76 / 0.2);
 
   @keyframes lp-rise {
     from {
       opacity: 0;
-      transform: translateY(40px);
+      transform: translateY(0.4em);
+    }
+  }
+  @keyframes lp-row {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+  @keyframes lp-type {
+    from {
+      clip-path: inset(0 100% 0 0);
+    }
+  }
+  @keyframes lp-marquee-x {
+    to {
+      transform: translateX(-50%);
+    }
+  }
+  @keyframes lp-marquee-y {
+    to {
+      transform: translateY(-50%);
     }
   }
   @keyframes lp-auth-in {
@@ -207,13 +237,16 @@
 
 /* next/font variables, set on the .lp wrapper by src/components/landing/fonts.ts */
 @theme inline {
-  --font-lp-display: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
-  --font-lp-text: var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  --font-lp-display: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+  --font-lp-text: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+  --font-lp-mono: var(--font-space-mono), ui-monospace, monospace;
 }
 
 @layer components {
   .lp {
     font-family: var(--font-lp-text);
+    font-weight: 500;
+    line-height: 1.24;
     color: var(--color-lp-ink);
     background-color: #fff;
     -webkit-font-smoothing: antialiased;
@@ -222,29 +255,30 @@
   .lp :focus-visible {
     outline-color: var(--color-lp-blue);
   }
-  .lp .lp-on-dark :focus-visible {
-    outline-color: #fff;
+  /* The dithered picture keeps its hard pixels when scaled up. */
+  .lp-pixels {
+    image-rendering: pixelated;
   }
-  /* Workshop pegboard on the blue sections (the reference uses a locker wall here). data: is allowed by img-src. */
-  .lp-pegboard {
-    background-color: var(--color-lp-blue);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Ccircle cx='14' cy='14' r='3' fill='%23003e7f' fill-opacity='.28'/%3E%3C/svg%3E");
-    background-size: 28px 28px;
+  /* Stat cards: a faint dot grid on a pale ground. data: is allowed by img-src. */
+  .lp-dotgrid {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Ccircle cx='5' cy='5' r='1' fill='%23191814' fill-opacity='.12'/%3E%3C/svg%3E");
+    background-size: 10px 10px;
+  }
+  /* Closing band: upright cream slats, like a roller shutter half up. */
+  .lp-slats {
+    background-color: var(--color-lp-paper);
+    background-image: repeating-linear-gradient(90deg, transparent 0 46px, rgb(25 24 20 / 0.035) 46px 47px, var(--color-lp-cream) 47px 92px, rgb(25 24 20 / 0.035) 92px 93px);
   }
 }
 
-/* Scroll reveals (reference: Webflow slideInBottom / growIn, 1000ms outQuart, once).
- * Hidden only after src/components/landing/reveal.tsx adds .lp-js, so content shows without JS. */
+/* Scroll reveals. Hidden only after src/components/landing/reveal.tsx adds .lp-js, so content shows without JS. */
 .lp-js [data-reveal] {
   opacity: 0;
-  transform: translateY(var(--lp-rise, 64px));
+  transform: translateY(var(--lp-rise, 40px));
   transition:
-    opacity 1000ms var(--ease-lp),
-    transform 1000ms var(--ease-lp);
+    opacity 900ms var(--ease-lp),
+    transform 900ms var(--ease-lp);
   transition-delay: var(--lp-delay, 0ms);
-}
-.lp-js [data-reveal="grow"] {
-  transform: scale(0.85);
 }
 .lp-js [data-reveal].is-in {
   opacity: 1;
@@ -252,53 +286,75 @@
 }
 @media (min-width: 64rem) {
   .lp-js {
-    --lp-rise: 100px;
+    --lp-rise: 64px;
   }
 }
+/* Reduced motion: the finished page at once (the global rule shortens animations; this drops their delays too). */
 @media (prefers-reduced-motion: reduce) {
+  .lp * {
+    animation-delay: 0s !important;
+    transition-delay: 0s !important;
+  }
   .lp-js [data-reveal] {
     opacity: 1;
     transform: none;
   }
 }
 
-/* How it works: dashed connectors fill blue step by step once the steps card is revealed (reference "line-step"). */
-.lp-step-line {
-  border-top: 4px dashed var(--color-lp-n40);
-}
-.lp-step-line::after {
+/* How it works: the job's day fills left to right once its card is revealed. */
+.lp-dayline::after {
   content: "";
   position: absolute;
-  inset: -4px 0 auto;
-  border-top: 4px dashed var(--color-lp-blue);
+  inset: 0;
+  border-radius: inherit;
+  background: var(--color-lp-blue);
   transform: scaleX(0);
   transform-origin: left;
-  transition: transform 700ms var(--ease-lp);
-  transition-delay: calc(var(--lp-delay, 0ms) + 600ms);
+  transition: transform 1600ms var(--ease-lp) 300ms;
 }
-.lp-step-icon {
-  transition: background-color 400ms var(--ease-lp);
-  transition-delay: calc(var(--lp-delay, 0ms) + 400ms);
-}
-.lp-steps.is-in .lp-step-line::after,
-.lp:not(.lp-js) .lp-step-line::after {
+.lp-day.is-in .lp-dayline::after,
+.lp:not(.lp-js) .lp-dayline::after {
   transform: none;
 }
-.lp-steps.is-in .lp-step-icon,
-.lp:not(.lp-js) .lp-step-icon {
-  background-color: var(--color-lp-surface);
+
+/* Closing headline: its second line types in once revealed. */
+.lp-js .lp-typed {
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 1100ms steps(12, end) 500ms;
+}
+.lp-js .is-in .lp-typed {
+  clip-path: inset(0 0 -0.2em 0);
 }
 
-/* Security band: grey pegboard dots fading out (the reference's dotted world map sits here). */
-.lp-dots {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Ccircle cx='7' cy='7' r='2.2' fill='%23d6d6d6'/%3E%3C/svg%3E");
-  background-size: 14px 14px;
-  mask-image: radial-gradient(ellipse 70% 70% at 70% 30%, #000 30%, transparent 75%);
+/* Marquees pause while a pointer or keyboard is on them. */
+.lp-marquee:hover .lp-marquee-track,
+.lp-marquee:focus-within .lp-marquee-track {
+  animation-play-state: paused;
 }
 
-/* Anchors land below the sticky header (88px on desktop); smooth only on the landing and only with motion allowed. */
+/* FAQ: the open row turns sky and its + turns to a blue ×. */
+.lp-faq[open] {
+  border-color: transparent;
+  border-radius: 20px;
+  background-color: var(--color-lp-sky);
+}
+.lp-faq summary:hover .lp-faq-q {
+  color: var(--color-lp-blue);
+}
+.lp-faq[open] .lp-faq-q {
+  color: var(--color-lp-blue);
+}
+.lp-faq[open] .lp-faq-icon {
+  background-color: var(--color-lp-blue);
+  transform: rotate(45deg);
+}
+.lp-faq summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Anchors land below the floating nav; smooth only on the landing and only with motion allowed. */
 .lp [id] {
-  scroll-margin-top: 6.5rem;
+  scroll-margin-top: 6rem;
 }
 @media (prefers-reduced-motion: no-preference) {
   html:has(.lp-smooth) {
@@ -306,7 +362,7 @@
   }
 }
 
-/* Sign-in pages (AuthShell): the landing's pegboard as faint blue dots around the card, faded out from the centre. */
+/* Sign-in pages (AuthShell): faint blue dots around the card, faded out from the centre. */
 .lp-auth-dots {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Ccircle cx='14' cy='14' r='2' fill='%230c6ace' fill-opacity='.18'/%3E%3C/svg%3E");
   background-size: 28px 28px;

@@ -1,6 +1,6 @@
-import Image from "next/image";
-import { ChevronRight } from "lucide-react";
-import { delay } from "./ui";
+import { Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Eyebrow, lpContainer, lpH2 } from "./ui";
 
 const FAQ = [
   {
@@ -41,48 +41,39 @@ const FAQ = [
   },
 ];
 
-/** Reference "Find a Location": heading + intro in two columns, a wide picture left and a list with blue links right. */
+/** Reference FAQ: heading left, intro right, numbered rows; one open at a time (details name), the first open. */
 export function Faq() {
   return (
-    <section id="faq" aria-labelledby="faq-title" className="pb-20 lg:pb-[120px]">
-      <div className="grid gap-6 lg:grid-cols-2 lg:gap-12">
-        <h2 id="faq-title" data-reveal className="font-lp-display text-balance text-[1.75rem] leading-[1.2] sm:text-[2.5rem] lg:text-5xl">
-          Questions, answered.
-        </h2>
-        <p data-reveal style={delay(90)} className="text-lg leading-[1.5] text-lp-body lg:pt-2">
+    <section id="faq" aria-labelledby="faq-title" className={cn(lpContainer, "pt-28 lg:pt-[150px]")}>
+      <header data-reveal className="grid gap-6 lg:grid-cols-2 lg:items-end">
+        <div>
+          <Eyebrow>FAQ</Eyebrow>
+          <h2 id="faq-title" className={cn(lpH2, "mt-4")}>
+            Questions, answered
+          </h2>
+        </div>
+        <p className="max-w-[30rem] text-lg text-pretty text-lp-body lg:justify-self-end">
           Short answers about the link, the money and who sees what. Anything else? Ask the garage owner.
         </p>
-      </div>
-      <div className="mt-12 grid items-start gap-8 lg:mt-16 lg:grid-cols-[60fr_40fr] lg:gap-6">
-        <div data-reveal="grow" className="overflow-hidden rounded-[24px] bg-canvas outline outline-1 -outline-offset-1 outline-black/10 lg:sticky lg:top-8">
-          <Image
-            src="/landing/jobs-list.webp"
-            alt="The jobs list: open jobs with tabs for each status, car, customer, mechanic, status and total"
-            width={1200}
-            height={750}
-            sizes="(min-width: 1024px) 760px, 100vw"
-            className="aspect-[16/10] h-auto w-full object-cover object-left-top"
-          />
-        </div>
-        <div className="grid gap-2">
-          {FAQ.map((item) => (
-            <details key={item.q} data-reveal className="group rounded-2xl px-1 py-3 [&_summary::-webkit-details-marker]:hidden">
-              <summary className="cursor-pointer list-none rounded-xl text-lg leading-[1.4] text-lp-ink">
-                {item.q}
-                <span aria-hidden className="mt-1.5 flex items-center gap-1 text-base text-lp-blue transition-colors duration-300 group-hover:text-lp-blue-hover">
-                  <span className="group-open:hidden">Show answer</span>
-                  <span className="hidden group-open:inline">Hide answer</span>
-                  <ChevronRight
-                    aria-hidden
-                    className="size-4 transition-transform duration-300 ease-lp group-hover:translate-x-[5px] group-open:rotate-90 group-open:group-hover:translate-x-0"
-                    strokeWidth={2}
-                  />
-                </span>
-              </summary>
-              <p className="mt-3 text-base leading-[1.5] text-lp-body">{item.a}</p>
-            </details>
-          ))}
-        </div>
+      </header>
+      <div className="mt-12 border-t border-lp-line lg:mt-16">
+        {FAQ.map((f, i) => (
+          <details key={f.q} name="faq" open={i === 0} className="lp-faq border-b border-lp-line transition-colors duration-300 ease-lp">
+            <summary className="flex cursor-pointer list-none items-center gap-4 px-4 py-6 sm:gap-8 sm:px-6 lg:py-7">
+              <span className="w-10 shrink-0 font-lp-mono text-sm text-lp-body">{String(i + 1).padStart(3, "0")}</span>
+              <span className="lp-faq-q flex-1 font-lp-display text-lg font-semibold tracking-[-0.02em] text-pretty transition-colors duration-300 lg:text-2xl">
+                {f.q}
+              </span>
+              <span
+                aria-hidden
+                className="lp-faq-icon grid size-9 shrink-0 place-items-center rounded-full bg-lp-ink text-white transition-[transform,background-color] duration-300 ease-lp"
+              >
+                <Plus className="size-4" strokeWidth={2} />
+              </span>
+            </summary>
+            <p className="max-w-[44rem] px-4 pb-7 pl-[4.5rem] text-pretty text-lp-body sm:px-6 sm:pl-[6.5rem] lg:text-lg">{f.a}</p>
+          </details>
+        ))}
       </div>
     </section>
   );

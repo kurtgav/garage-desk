@@ -1,35 +1,29 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { Menu, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { LandingWordmark, lpButton, lpContainer } from "./ui";
+import { LandingWordmark, LpCta } from "./ui";
 
 const LINKS = [
   { href: "#how-it-works", label: "How it works" },
   { href: "#features", label: "Features" },
+  { href: "#tour", label: "Tour" },
   { href: "#security", label: "Security" },
   { href: "#faq", label: "FAQ" },
 ];
 
 type Props = { cta: { href: string; label: string } };
 
-const subscribeScroll = (onChange: () => void) => {
-  window.addEventListener("scroll", onChange, { passive: true });
-  return () => window.removeEventListener("scroll", onChange);
-};
-
 /**
- * Sticky bar for the whole page: transparent over the top of the hero, white and blurred once the page
- * scrolls. Server and no-JS render the white bar (no data-scrolled), so content never shows through it.
- * Section links from 1024px, a menu below that.
+ * The reference's floating white pill, fixed 16px from the top: wordmark, section links, a dark CTA pill.
+ * Below 1024px the links fold into a menu behind a "+" that turns into a ×.
  */
 export function LandingHeader({ cta }: Props) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const scrolled = useSyncExternalStore<boolean | null>(subscribeScroll, () => window.scrollY > 8, () => null);
 
   useEffect(() => {
     if (!open) return;
@@ -43,12 +37,12 @@ export function LandingHeader({ cta }: Props) {
   }, [open]);
 
   return (
-    <header
-      data-scrolled={scrolled === null ? undefined : scrolled}
-      className="sticky top-0 z-50 bg-white/85 shadow-[0_1px_0_rgb(16_16_16/0.08)] backdrop-blur-md transition-[background-color,box-shadow,backdrop-filter] duration-300 ease-lp motion-reduce:transition-none data-[scrolled=false]:bg-transparent data-[scrolled=false]:shadow-none data-[scrolled=false]:backdrop-blur-none"
-    >
-      <nav aria-label="Main" className={cn(lpContainer, "relative flex h-[76px] items-center justify-between gap-3 lg:h-[88px]")}>
-        <Link href="/" aria-label="Garage Desk, home" className="rounded-full">
+    <header className="fixed inset-x-3 top-3 z-50 flex justify-center sm:top-4">
+      <nav
+        aria-label="Main"
+        className="relative flex w-full max-w-[720px] items-center justify-between gap-3 rounded-full bg-white/95 py-1.5 pr-1.5 pl-4 shadow-[0_0_0_1px_rgb(25_24_20/0.06),0_8px_24px_-12px_rgb(25_24_20/0.18)] backdrop-blur-md lg:w-auto lg:pl-3.5"
+      >
+        <Link href="/" aria-label="Garage Desk, home" className="rounded-[8px]">
           <LandingWordmark textClassName="max-[359px]:sr-only" />
         </Link>
         <ul className="hidden items-center lg:flex">
@@ -56,7 +50,7 @@ export function LandingHeader({ cta }: Props) {
             <li key={l.href}>
               <a
                 href={l.href}
-                className="block rounded-full px-4 py-3 text-[17px] text-lp-body transition-colors duration-300 hover:text-lp-blue"
+                className="block rounded-full px-3 py-2 text-[15px] whitespace-nowrap text-lp-ink transition-colors duration-200 hover:text-lp-blue"
               >
                 {l.label}
               </a>
@@ -64,18 +58,16 @@ export function LandingHeader({ cta }: Props) {
           ))}
         </ul>
         <div className="flex items-center gap-1">
-          <Link href={cta.href} className={lpButton({ size: "md", className: "h-11 px-4 text-base sm:px-6" })}>
-            {cta.label}
-          </Link>
+          <LpCta href={cta.href} label={cta.label} tone="ink" pill className="h-11 pl-4 [&>span]:w-11" />
           <button
             ref={buttonRef}
             type="button"
             aria-expanded={open}
             aria-controls={menuId}
             onClick={() => setOpen((v) => !v)}
-            className="grid size-11 place-items-center rounded-full text-lp-ink transition-colors duration-300 hover:bg-lp-n20 lg:hidden"
+            className="grid size-11 place-items-center rounded-full bg-lp-cream text-lp-ink transition-colors duration-200 hover:bg-[#e6e8d6] lg:hidden"
           >
-            {open ? <X aria-hidden className="size-6" strokeWidth={1.75} /> : <Menu aria-hidden className="size-6" strokeWidth={1.75} />}
+            <Plus aria-hidden className={cn("size-5 transition-transform duration-300 ease-lp", open && "rotate-45")} strokeWidth={1.75} />
             <span className="sr-only">Menu</span>
           </button>
         </div>
@@ -83,7 +75,7 @@ export function LandingHeader({ cta }: Props) {
           id={menuId}
           hidden={!open}
           className={cn(
-            "absolute inset-x-6 top-full z-20 mt-2 grid gap-1 rounded-3xl bg-white p-3 shadow-[0_12px_40px_-12px_rgb(16_16_16/0.25),0_0_0_1px_rgb(16_16_16/0.06)] md:inset-x-8 lg:hidden",
+            "absolute inset-x-0 top-full mt-2 grid gap-1 rounded-[24px] bg-white p-2 shadow-[0_0_0_1px_rgb(25_24_20/0.06),0_16px_40px_-16px_rgb(25_24_20/0.3)] lg:hidden",
             open && "animate-pop-in",
           )}
         >
@@ -92,7 +84,7 @@ export function LandingHeader({ cta }: Props) {
               <a
                 href={l.href}
                 onClick={() => setOpen(false)}
-                className="block rounded-2xl px-4 py-3 text-lg text-lp-ink transition-colors duration-300 hover:bg-lp-n20 hover:text-lp-blue"
+                className="block rounded-[16px] px-4 py-3 text-lg text-lp-ink transition-colors duration-200 hover:bg-lp-paper hover:text-lp-blue"
               >
                 {l.label}
               </a>
